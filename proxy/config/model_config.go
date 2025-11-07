@@ -10,6 +10,8 @@ import (
 type ModelConfig struct {
 	Cmd           string   `yaml:"cmd"`
 	CmdStop       string   `yaml:"cmdStop"`
+	CmdSleep      string   `yaml:"cmdSleep"`
+	CmdWake       string   `yaml:"cmdWake"`
 	Proxy         string   `yaml:"proxy"`
 	Aliases       []string `yaml:"aliases"`
 	Env           []string `yaml:"env"`
@@ -45,6 +47,8 @@ func (m *ModelConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	defaults := rawModelConfig{
 		Cmd:              "",
 		CmdStop:          "",
+		CmdSleep:         "",
+		CmdWake:          "",
 		Proxy:            "http://localhost:${PORT}",
 		Aliases:          []string{},
 		Env:              []string{},

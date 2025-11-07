@@ -318,6 +318,8 @@ func LoadConfigFromReader(r io.Reader) (Config, error) {
 		fieldMap := map[string]string{
 			"cmd":                 modelConfig.Cmd,
 			"cmdStop":             modelConfig.CmdStop,
+			"cmdSleep":            modelConfig.CmdSleep,
+			"cmdWake":             modelConfig.CmdWake,
 			"proxy":               modelConfig.Proxy,
 			"checkEndpoint":       modelConfig.CheckEndpoint,
 			"filters.stripParams": modelConfig.Filters.StripParams,
@@ -327,7 +329,7 @@ func LoadConfigFromReader(r io.Reader) (Config, error) {
 			matches := macroPatternRegex.FindAllStringSubmatch(fieldValue, -1)
 			for _, match := range matches {
 				macroName := match[1]
-				if macroName == "PID" && fieldName == "cmdStop" {
+				if macroName == "PID" && (fieldName == "cmdStop" || fieldName == "cmdSleep" || fieldName == "cmdWake") {
 					continue // this is ok, has to be replaced by process later
 				}
 				// Reserved macros are always valid (they should have been substituted already)
@@ -350,6 +352,13 @@ func LoadConfigFromReader(r io.Reader) (Config, error) {
 		if _, err := url.Parse(modelConfig.Proxy); err != nil {
 			return Config{}, fmt.Errorf(
 				"model %s: invalid proxy URL: %w", modelId, err,
+			)
+		}
+
+		// Validate sleep/wake configuration
+		if modelConfig.CmdSleep != "" && modelConfig.CmdWake == "" {
+			return Config{}, fmt.Errorf(
+				"model %s: cmdWake is required when cmdSleep is defined", modelId,
 			)
 		}
 

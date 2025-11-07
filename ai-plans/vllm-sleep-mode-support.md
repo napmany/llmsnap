@@ -392,41 +392,41 @@ if time.Since(p.getLastRequestHandled()) > maxDuration {
 ## Implementation Checklist
 
 ### Phase 1: Core Infrastructure
-- [ ] Add `CmdSleep` field to `ModelConfig` struct in `proxy/config/model_config.go`
-- [ ] Add `CmdWake` field to `ModelConfig` struct
-- [ ] Add config parsing and validation (cmdWake required if cmdSleep defined)
-- [ ] Add macro substitution support for cmdSleep/cmdWake (reuse existing logic)
-- [ ] Add `StateSleeping` and `StateWaking` to `ProcessState` enum in `proxy/process.go`
-- [ ] Update `isValidTransition()` to support new states
+- [x] Add `CmdSleep` field to `ModelConfig` struct in `proxy/config/model_config.go`
+- [x] Add `CmdWake` field to `ModelConfig` struct
+- [x] Add config parsing and validation (cmdWake required if cmdSleep defined)
+- [x] Add macro substitution support for cmdSleep/cmdWake (reuse existing logic)
+- [x] Add `StateSleeping` and `StateWaking` to `ProcessState` enum in `proxy/process.go`
+- [x] Update `isValidTransition()` to support new states
 - [ ] Add unit tests for state transitions
 
 ### Phase 2: Sleep/Wake Methods
-- [ ] Implement `Process.Sleep()` method
-  - [ ] Execute `cmdSleep` using `exec.Command()`
-  - [ ] Apply command sanitization and macro substitution
-  - [ ] Handle exit codes and timeouts
-  - [ ] Capture stdout/stderr to processLogger
-  - [ ] Fallback to `Stop()` on failure
-- [ ] Implement `Process.Wake()` method
-  - [ ] Execute `cmdWake` using `exec.Command()`
-  - [ ] Apply command sanitization and macro substitution
-  - [ ] Run health check after wake
-  - [ ] Restart process if wake fails
-- [ ] Update `Process.start()` to check for sleeping state and call `Wake()`
+- [x] Implement `Process.Sleep()` method
+  - [x] Execute `cmdSleep` using `exec.Command()`
+  - [x] Apply command sanitization and macro substitution
+  - [x] Handle exit codes and timeouts
+  - [x] Capture stdout/stderr to processLogger
+  - [x] Fallback to `Stop()` on failure
+- [x] Implement `Process.Wake()` method
+  - [x] Execute `cmdWake` using `exec.Command()`
+  - [x] Apply command sanitization and macro substitution
+  - [x] Run health check after wake
+  - [x] Restart process if wake fails
+- [x] Update `Process.start()` to check for sleeping state and call `Wake()`
 - [ ] Add unit tests with mocked command execution
 
 ### Phase 3: Integration Points
-- [ ] Modify `ProcessGroup.swap()` to check `cmdSleep` and call `Sleep()` when defined
-- [ ] Update TTL goroutine to check `cmdSleep` and call `Sleep()` instead of `Stop()`
-- [ ] Ensure process isn't terminated when sleeping (PID must remain same)
+- [x] Modify `ProcessGroup.swap()` to check `cmdSleep` and call `Sleep()` when defined
+- [x] Update TTL goroutine to check `cmdSleep` and call `Sleep()` instead of `Stop()`
+- [x] Ensure process isn't terminated when sleeping (PID must remain same)
 - [ ] Add integration tests for swap with sleep
 - [ ] Test that sleeping processes don't get killed during swap
 
 ### Phase 4: Events & Monitoring
-- [ ] Define `ProcessSleepEvent` and `ProcessWakeEvent`
-- [ ] Emit events at appropriate lifecycle points
-- [ ] Add detailed logging for sleep/wake operations
-- [ ] Add timing metrics for sleep/wake operations
+- [x] Define `ProcessSleepEvent` and `ProcessWakeEvent` (using existing ProcessStateChangeEvent with new states)
+- [x] Emit events at appropriate lifecycle points
+- [x] Add detailed logging for sleep/wake operations
+- [x] Add timing metrics for sleep/wake operations
 
 ### Phase 5: API Endpoints
 - [ ] Add `POST /models/sleep/:model_id` endpoint
@@ -450,7 +450,7 @@ if time.Since(p.getLastRequestHandled()) > maxDuration {
 - [ ] Update config.example.yaml with cmdSleep/cmdWake examples
 
 ### Phase 7: Testing
-- [ ] Run `make test-dev` and fix any issues
+- [x] Run `make test-dev` and fix any issues (no new issues, TestProxyManager_StartupHooks was already broken)
 - [ ] Run `make test-all` for concurrency tests
 - [ ] Perform manual testing with real vLLM instance
 - [ ] Test both sleep level 1 and level 2

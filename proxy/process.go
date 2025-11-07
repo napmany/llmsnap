@@ -31,6 +31,10 @@ const (
 
 	// process is shutdown and will not be restarted
 	StateShutdown ProcessState = ProcessState("shutdown")
+
+	// sleep/wake states for models that support sleep mode
+	StateSleeping ProcessState = ProcessState("sleeping")
+	StateWaking   ProcessState = ProcessState("waking")
 )
 
 type StopStrategy int
@@ -189,11 +193,15 @@ func isValidTransition(from, to ProcessState) bool {
 	case StateStarting:
 		return to == StateReady || to == StateStopping || to == StateStopped
 	case StateReady:
-		return to == StateStopping
+		return to == StateStopping || to == StateSleeping
 	case StateStopping:
 		return to == StateStopped || to == StateShutdown
 	case StateShutdown:
-		return false // No transitions allowed from these states
+		return false // No transitions allowed from this state
+	case StateSleeping:
+		return to == StateWaking || to == StateStopping
+	case StateWaking:
+		return to == StateReady || to == StateStopping
 	}
 	return false
 }
@@ -220,6 +228,13 @@ func (p *Process) start() error {
 
 	if p.config.Proxy == "" {
 		return fmt.Errorf("can not start(), upstream proxy missing")
+	}
+
+	// If process is sleeping, wake it instead of starting
+	currentState := p.CurrentState()
+	if currentState == StateSleeping {
+		p.proxyLogger.Debugf("<%s> Process is sleeping, waking instead of starting", p.ID)
+		return p.Wake()
 	}
 
 	args, err := p.config.SanitizedCommand()
@@ -349,8 +364,14 @@ func (p *Process) start() error {
 				}
 
 				if time.Since(p.getLastRequestHandled()) > maxDuration {
-					p.proxyLogger.Infof("<%s> Unloading model, TTL of %ds reached", p.ID, p.config.UnloadAfter)
-					p.Stop()
+					// Use sleep mode if configured, otherwise stop
+					if p.config.CmdSleep != "" {
+						p.proxyLogger.Infof("<%s> Sleeping model, TTL of %ds reached", p.ID, p.config.UnloadAfter)
+						p.Sleep()
+					} else {
+						p.proxyLogger.Infof("<%s> Unloading model, TTL of %ds reached", p.ID, p.config.UnloadAfter)
+						p.Stop()
+					}
 					return
 				}
 			}
@@ -405,6 +426,193 @@ func (p *Process) Shutdown() {
 	p.stopCommand()
 	// just force it to this state since there is no recovery from shutdown
 	p.forceState(StateShutdown)
+}
+
+// Sleep transitions the process to a sleeping state by executing cmdSleep if defined.
+// If cmdSleep is not defined or fails, it falls back to Stop().
+func (p *Process) Sleep() {
+	// If cmdSleep is not defined, fall back to Stop()
+	if p.config.CmdSleep == "" {
+		p.proxyLogger.Debugf("<%s> cmdSleep not defined, falling back to Stop()", p.ID)
+		p.Stop()
+		return
+	}
+
+	// Check if already sleeping (idempotent)
+	currentState := p.CurrentState()
+	if currentState == StateSleeping {
+		p.proxyLogger.Debugf("<%s> Already sleeping", p.ID)
+		return
+	}
+
+	// Can only sleep from Ready state
+	if !isValidTransition(currentState, StateSleeping) {
+		p.proxyLogger.Warnf("<%s> Cannot sleep from state %s", p.ID, currentState)
+		return
+	}
+
+	// Wait for inflight requests to complete
+	p.proxyLogger.Debugf("<%s> Sleep(): Waiting for inflight requests to complete", p.ID)
+	p.inFlightRequests.Wait()
+
+	// Transition to sleeping state
+	if curState, err := p.swapState(StateReady, StateSleeping); err != nil {
+		p.proxyLogger.Warnf("<%s> Failed to transition to sleeping: %v, current state: %v", p.ID, err, curState)
+		return
+	}
+
+	// Execute cmdSleep
+	sleepStartTime := time.Now()
+	if err := p.executeSleepCommand(); err != nil {
+		p.proxyLogger.Errorf("<%s> cmdSleep failed, falling back to Stop(): %v", p.ID, err)
+		// Transition to stopping and call Stop
+		if _, swapErr := p.swapState(StateSleeping, StateStopping); swapErr != nil {
+			p.proxyLogger.Errorf("<%s> Failed to transition from sleeping to stopping: %v", p.ID, swapErr)
+		}
+		p.stopCommand()
+		return
+	}
+
+	p.proxyLogger.Infof("<%s> Model sleep completed in %v", p.ID, time.Since(sleepStartTime))
+}
+
+// executeSleepCommand executes the cmdSleep command with timeout
+func (p *Process) executeSleepCommand() error {
+	if p.cmd == nil || p.cmd.Process == nil {
+		return fmt.Errorf("process is nil, cannot execute sleep command")
+	}
+
+	// Replace ${PID} with actual process PID
+	sleepCmd := strings.ReplaceAll(p.config.CmdSleep, "${PID}", fmt.Sprintf("%d", p.cmd.Process.Pid))
+	sleepArgs, err := config.SanitizeCommand(sleepCmd)
+	if err != nil {
+		return fmt.Errorf("failed to sanitize sleep command: %v", err)
+	}
+
+	p.proxyLogger.Infof("<%s> Executing cmdSleep", p.ID)
+	p.proxyLogger.Debugf("<%s> Sleep command: %s", p.ID, strings.Join(sleepArgs, " "))
+
+	// Create command with 10s timeout (aggressive)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, sleepArgs[0], sleepArgs[1:]...)
+	cmd.Stdout = p.processLogger
+	cmd.Stderr = p.processLogger
+	cmd.Env = p.cmd.Env
+
+	if err := cmd.Run(); err != nil {
+		if ctx.Err() == context.DeadlineExceeded {
+			return fmt.Errorf("sleep command timed out after 10s")
+		}
+		return fmt.Errorf("sleep command failed (exit code %v): %v", cmd.ProcessState.ExitCode(), err)
+	}
+
+	return nil
+}
+
+// Wake transitions the process from sleeping to ready by executing cmdWake.
+// If wake fails, the process is restarted from scratch.
+func (p *Process) Wake() error {
+	currentState := p.CurrentState()
+
+	// Can only wake from sleeping state
+	if currentState != StateSleeping {
+		return fmt.Errorf("cannot wake from state %s, must be sleeping", currentState)
+	}
+
+	// Transition to waking state
+	if curState, err := p.swapState(StateSleeping, StateWaking); err != nil {
+		return fmt.Errorf("failed to transition to waking: %v, current state: %v", err, curState)
+	}
+
+	wakeStartTime := time.Now()
+
+	// Execute cmdWake
+	if err := p.executeWakeCommand(); err != nil {
+		p.proxyLogger.Errorf("<%s> cmdWake failed, restarting process: %v", p.ID, err)
+		// Transition to stopping, then restart
+		if _, swapErr := p.swapState(StateWaking, StateStopping); swapErr != nil {
+			p.proxyLogger.Errorf("<%s> Failed to transition from waking to stopping: %v", p.ID, swapErr)
+		}
+		p.stopCommand()
+		// Wait for stop to complete, then start fresh
+		if _, swapErr := p.swapState(StateStopping, StateStopped); swapErr != nil {
+			p.proxyLogger.Errorf("<%s> Failed to transition to stopped: %v", p.ID, swapErr)
+		}
+		return p.start()
+	}
+
+	// Run health check to verify wake was successful
+	healthURL := p.config.Proxy + p.config.CheckEndpoint
+	p.proxyLogger.Debugf("<%s> Running health check after wake: %s", p.ID, healthURL)
+
+	timeout := time.Duration(p.healthCheckTimeout) * time.Second
+	healthCheckStart := time.Now()
+
+	for {
+		if err := p.checkHealthEndpoint(healthURL); err == nil {
+			break // Health check passed
+		}
+
+		if time.Since(healthCheckStart) > timeout {
+			p.proxyLogger.Errorf("<%s> Health check failed after wake, restarting process", p.ID)
+			// Transition to stopping, then restart
+			if _, swapErr := p.swapState(StateWaking, StateStopping); swapErr != nil {
+				p.proxyLogger.Errorf("<%s> Failed to transition from waking to stopping: %v", p.ID, swapErr)
+			}
+			p.stopCommand()
+			if _, swapErr := p.swapState(StateStopping, StateStopped); swapErr != nil {
+				p.proxyLogger.Errorf("<%s> Failed to transition to stopped: %v", p.ID, swapErr)
+			}
+			return p.start()
+		}
+
+		time.Sleep(p.healthCheckLoopInterval)
+	}
+
+	// Transition to ready state
+	if curState, err := p.swapState(StateWaking, StateReady); err != nil {
+		return fmt.Errorf("failed to transition to ready after wake: %v, current state: %v", err, curState)
+	}
+
+	p.proxyLogger.Infof("<%s> Model wake completed in %v", p.ID, time.Since(wakeStartTime))
+	return nil
+}
+
+// executeWakeCommand executes the cmdWake command with timeout
+func (p *Process) executeWakeCommand() error {
+	if p.cmd == nil || p.cmd.Process == nil {
+		return fmt.Errorf("process is nil, cannot execute wake command")
+	}
+
+	// Replace ${PID} with actual process PID
+	wakeCmd := strings.ReplaceAll(p.config.CmdWake, "${PID}", fmt.Sprintf("%d", p.cmd.Process.Pid))
+	wakeArgs, err := config.SanitizeCommand(wakeCmd)
+	if err != nil {
+		return fmt.Errorf("failed to sanitize wake command: %v", err)
+	}
+
+	p.proxyLogger.Infof("<%s> Executing cmdWake", p.ID)
+	p.proxyLogger.Debugf("<%s> Wake command: %s", p.ID, strings.Join(wakeArgs, " "))
+
+	// Create command with 30s timeout (aggressive)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, wakeArgs[0], wakeArgs[1:]...)
+	cmd.Stdout = p.processLogger
+	cmd.Stderr = p.processLogger
+	cmd.Env = p.cmd.Env
+
+	if err := cmd.Run(); err != nil {
+		if ctx.Err() == context.DeadlineExceeded {
+			return fmt.Errorf("wake command timed out after 30s")
+		}
+		return fmt.Errorf("wake command failed (exit code %v): %v", cmd.ProcessState.ExitCode(), err)
+	}
+
+	return nil
 }
 
 // stopCommand will send a SIGTERM to the process and wait for it to exit.
