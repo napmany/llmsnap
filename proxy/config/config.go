@@ -111,6 +111,8 @@ type HookOnStartup struct {
 
 type Config struct {
 	HealthCheckTimeout int                    `yaml:"healthCheckTimeout"`
+	CmdSleepTimeout    int                    `yaml:"cmdSleepTimeout"`
+	CmdWakeTimeout     int                    `yaml:"cmdWakeTimeout"`
 	LogRequests        bool                   `yaml:"logRequests"`
 	LogLevel           string                 `yaml:"logLevel"`
 	MetricsMaxInMemory int                    `yaml:"metricsMaxInMemory"`
@@ -170,6 +172,8 @@ func LoadConfigFromReader(r io.Reader) (Config, error) {
 	// default configuration values
 	config := Config{
 		HealthCheckTimeout: 120,
+		CmdSleepTimeout:    60,
+		CmdWakeTimeout:     60,
 		StartPort:          5800,
 		LogLevel:           "info",
 		MetricsMaxInMemory: 1000,
@@ -271,6 +275,16 @@ func LoadConfigFromReader(r io.Reader) (Config, error) {
 			modelConfig.CheckEndpoint = strings.ReplaceAll(modelConfig.CheckEndpoint, macroSlug, macroStr)
 			modelConfig.Filters.StripParams = strings.ReplaceAll(modelConfig.Filters.StripParams, macroSlug, macroStr)
 
+			// Substitute in sleep/wake endpoint arrays
+			for j := range modelConfig.SleepEndpoints {
+				modelConfig.SleepEndpoints[j].Endpoint = strings.ReplaceAll(modelConfig.SleepEndpoints[j].Endpoint, macroSlug, macroStr)
+				modelConfig.SleepEndpoints[j].Body = strings.ReplaceAll(modelConfig.SleepEndpoints[j].Body, macroSlug, macroStr)
+			}
+			for j := range modelConfig.WakeEndpoints {
+				modelConfig.WakeEndpoints[j].Endpoint = strings.ReplaceAll(modelConfig.WakeEndpoints[j].Endpoint, macroSlug, macroStr)
+				modelConfig.WakeEndpoints[j].Body = strings.ReplaceAll(modelConfig.WakeEndpoints[j].Body, macroSlug, macroStr)
+			}
+
 			// Substitute in metadata (recursive)
 			if len(modelConfig.Metadata) > 0 {
 				var err error
@@ -300,6 +314,16 @@ func LoadConfigFromReader(r io.Reader) (Config, error) {
 			modelConfig.Cmd = strings.ReplaceAll(modelConfig.Cmd, macroSlug, macroStr)
 			modelConfig.CmdStop = strings.ReplaceAll(modelConfig.CmdStop, macroSlug, macroStr)
 			modelConfig.Proxy = strings.ReplaceAll(modelConfig.Proxy, macroSlug, macroStr)
+
+			// Substitute PORT in sleep/wake endpoint arrays
+			for j := range modelConfig.SleepEndpoints {
+				modelConfig.SleepEndpoints[j].Endpoint = strings.ReplaceAll(modelConfig.SleepEndpoints[j].Endpoint, macroSlug, macroStr)
+				modelConfig.SleepEndpoints[j].Body = strings.ReplaceAll(modelConfig.SleepEndpoints[j].Body, macroSlug, macroStr)
+			}
+			for j := range modelConfig.WakeEndpoints {
+				modelConfig.WakeEndpoints[j].Endpoint = strings.ReplaceAll(modelConfig.WakeEndpoints[j].Endpoint, macroSlug, macroStr)
+				modelConfig.WakeEndpoints[j].Body = strings.ReplaceAll(modelConfig.WakeEndpoints[j].Body, macroSlug, macroStr)
+			}
 
 			// Substitute PORT in metadata
 			if len(modelConfig.Metadata) > 0 {
@@ -339,6 +363,32 @@ func LoadConfigFromReader(r io.Reader) (Config, error) {
 			}
 		}
 
+		// Check sleep/wake endpoint arrays for unknown macros
+		for i, endpoint := range modelConfig.SleepEndpoints {
+			for _, fieldValue := range []string{endpoint.Endpoint, endpoint.Body} {
+				matches := macroPatternRegex.FindAllStringSubmatch(fieldValue, -1)
+				for _, match := range matches {
+					macroName := match[1]
+					if macroName == "PORT" || macroName == "MODEL_ID" {
+						return Config{}, fmt.Errorf("macro '${%s}' should have been substituted in %s.sleepEndpoints[%d]", macroName, modelId, i)
+					}
+					return Config{}, fmt.Errorf("unknown macro '${%s}' found in %s.sleepEndpoints[%d]", macroName, modelId, i)
+				}
+			}
+		}
+		for i, endpoint := range modelConfig.WakeEndpoints {
+			for _, fieldValue := range []string{endpoint.Endpoint, endpoint.Body} {
+				matches := macroPatternRegex.FindAllStringSubmatch(fieldValue, -1)
+				for _, match := range matches {
+					macroName := match[1]
+					if macroName == "PORT" || macroName == "MODEL_ID" {
+						return Config{}, fmt.Errorf("macro '${%s}' should have been substituted in %s.wakeEndpoints[%d]", macroName, modelId, i)
+					}
+					return Config{}, fmt.Errorf("unknown macro '${%s}' found in %s.wakeEndpoints[%d]", macroName, modelId, i)
+				}
+			}
+		}
+
 		// Check for unknown macros in metadata
 		if len(modelConfig.Metadata) > 0 {
 			if err := validateMetadataForUnknownMacros(modelConfig.Metadata, modelId); err != nil {
@@ -352,6 +402,8 @@ func LoadConfigFromReader(r io.Reader) (Config, error) {
 				"model %s: invalid proxy URL: %w", modelId, err,
 			)
 		}
+
+		// Sleep/wake validation is now handled in ModelConfig.UnmarshalYAML
 
 		// if sendLoadingState is nil, set it to the global config value
 		// see #366

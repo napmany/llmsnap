@@ -46,7 +46,7 @@ func NewProcessGroup(id string, config config.Config, proxyLogger *LogMonitor, u
 	// Create a Process for each member in the group
 	for _, modelID := range groupConfig.Members {
 		modelConfig, modelID, _ := pg.config.FindConfig(modelID)
-		process := NewProcess(modelID, pg.config.HealthCheckTimeout, modelConfig, pg.upstreamLogger, pg.proxyLogger)
+		process := NewProcess(modelID, pg.config.HealthCheckTimeout, pg.config.CmdSleepTimeout, pg.config.CmdWakeTimeout, modelConfig, pg.upstreamLogger, pg.proxyLogger)
 		pg.processes[modelID] = process
 	}
 
@@ -65,7 +65,14 @@ func (pg *ProcessGroup) ProxyRequest(modelID string, writer http.ResponseWriter,
 
 			// is there something already running?
 			if pg.lastUsedProcess != "" {
-				pg.processes[pg.lastUsedProcess].Stop()
+				lastProcess := pg.processes[pg.lastUsedProcess]
+				// Use sleep mode if configured, otherwise stop
+				// TODO: let process decide
+				if lastProcess.isSleepEnabled() {
+					lastProcess.Sleep()
+				} else {
+					lastProcess.Stop()
+				}
 			}
 
 			// wait for the request to the new model to be fully handled
