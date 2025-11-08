@@ -267,6 +267,8 @@ func LoadConfigFromReader(r io.Reader) (Config, error) {
 			// Substitute in command fields
 			modelConfig.Cmd = strings.ReplaceAll(modelConfig.Cmd, macroSlug, macroStr)
 			modelConfig.CmdStop = strings.ReplaceAll(modelConfig.CmdStop, macroSlug, macroStr)
+			modelConfig.CmdSleep = strings.ReplaceAll(modelConfig.CmdSleep, macroSlug, macroStr)
+			modelConfig.CmdWake = strings.ReplaceAll(modelConfig.CmdWake, macroSlug, macroStr)
 			modelConfig.Proxy = strings.ReplaceAll(modelConfig.Proxy, macroSlug, macroStr)
 			modelConfig.CheckEndpoint = strings.ReplaceAll(modelConfig.CheckEndpoint, macroSlug, macroStr)
 			modelConfig.Filters.StripParams = strings.ReplaceAll(modelConfig.Filters.StripParams, macroSlug, macroStr)
@@ -299,6 +301,8 @@ func LoadConfigFromReader(r io.Reader) (Config, error) {
 
 			modelConfig.Cmd = strings.ReplaceAll(modelConfig.Cmd, macroSlug, macroStr)
 			modelConfig.CmdStop = strings.ReplaceAll(modelConfig.CmdStop, macroSlug, macroStr)
+			modelConfig.CmdSleep = strings.ReplaceAll(modelConfig.CmdSleep, macroSlug, macroStr)
+			modelConfig.CmdWake = strings.ReplaceAll(modelConfig.CmdWake, macroSlug, macroStr)
 			modelConfig.Proxy = strings.ReplaceAll(modelConfig.Proxy, macroSlug, macroStr)
 
 			// Substitute PORT in metadata
