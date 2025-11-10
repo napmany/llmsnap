@@ -18,6 +18,20 @@
 # - minimum value is 15 seconds, anything less will be set to this value
 healthCheckTimeout: 500
 
+# cmdSleepTimeout: number of seconds to wait for cmdSleep command to complete
+# - optional, default: 60
+# - applies globally to all models unless overridden per-model
+# - used when putting a model to sleep during model swapping
+# - increase for large models that take longer to sleep
+cmdSleepTimeout: 60
+
+# cmdWakeTimeout: number of seconds to wait for cmdWake command to complete
+# - optional, default: 60
+# - applies globally to all models unless overridden per-model
+# - used when waking a model from sleep
+# - increase for large models that take longer to wake
+cmdWakeTimeout: 60
+
 # logLevel: sets the logging value
 # - optional, default: info
 # - Valid log levels: debug, info, warn, error
@@ -225,6 +239,55 @@ models:
     # - on POSIX systems: a SIGTERM signal is sent
     # - on Windows, calls taskkill to stop the process
     # - processes have 5 seconds to shutdown until forceful termination is attempted
+    cmdStop: docker stop ${MODEL_ID}
+
+  # vLLM Sleep Mode Example:
+  # vLLM supports sleep/wake functionality for fast model switching
+  # See: https://docs.vllm.ai/en/stable/features/sleep_mode.html
+  "vllm-sleep-example":
+    cmd: |
+      docker run --name ${MODEL_ID} --runtime=nvidia --rm
+      -p ${PORT}:8000
+      -v /models:/models
+      vllm/vllm-openai:latest
+      --model /models/my-model
+      --served-model-name ${MODEL_ID}
+    env:
+      # Required to enable sleep mode in vLLM
+      - "VLLM_SERVER_DEV_MODE=1"
+
+    # cmdSleep: command to put the model to sleep instead of stopping it
+    # - optional, default: ""
+    # - if defined, used instead of cmdStop during model swapping
+    # - supports multi-line with | syntax
+    # - full macro substitution: ${PORT}, ${MODEL_ID}, ${PID}
+    # - sleep level 1: offload weights to CPU RAM (faster wake, higher RAM usage)
+    # - sleep level 2: discard weights entirely (slower wake, minimal RAM usage)
+    cmdSleep: |
+      curl -X POST http://localhost:${PORT}/sleep
+      -H "Content-Type: application/json"
+      -d '{"level": "1"}'
+
+    # cmdWake: command to wake the model from sleep
+    # - required if cmdSleep is defined
+    # - used when loading a sleeping model
+    # - supports multi-line with | syntax
+    # - full macro substitution
+    cmdWake: curl -X POST http://localhost:${PORT}/wake_up
+
+    # cmdSleepTimeout: override global timeout for this specific model
+    # - optional, default: uses global cmdSleepTimeout (60s)
+    # - useful for large models that need more time to sleep
+    # - vLLM sleep typically completes in 1-20 seconds depending on model size
+    cmdSleepTimeout: 120
+
+    # cmdWakeTimeout: override global timeout for this specific model
+    # - optional, default: uses global cmdWakeTimeout (60s)
+    # - useful for large models that need more time to wake
+    # - vLLM wake typically completes in 0.1-6 seconds (level 1) or 0.8-2.6s (level 2)
+    cmdWakeTimeout: 90
+
+    # cmdStop is still available for explicit shutdown requests
     cmdStop: docker stop ${MODEL_ID}
 
 # groups: a dictionary of group settings

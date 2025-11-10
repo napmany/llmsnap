@@ -8,17 +8,19 @@ import (
 )
 
 type ModelConfig struct {
-	Cmd           string   `yaml:"cmd"`
-	CmdStop       string   `yaml:"cmdStop"`
-	CmdSleep      string   `yaml:"cmdSleep"`
-	CmdWake       string   `yaml:"cmdWake"`
-	Proxy         string   `yaml:"proxy"`
-	Aliases       []string `yaml:"aliases"`
-	Env           []string `yaml:"env"`
-	CheckEndpoint string   `yaml:"checkEndpoint"`
-	UnloadAfter   int      `yaml:"ttl"`
-	Unlisted      bool     `yaml:"unlisted"`
-	UseModelName  string   `yaml:"useModelName"`
+	Cmd              string   `yaml:"cmd"`
+	CmdStop          string   `yaml:"cmdStop"`
+	CmdSleep         string   `yaml:"cmdSleep"`
+	CmdWake          string   `yaml:"cmdWake"`
+	CmdSleepTimeout  int      `yaml:"cmdSleepTimeout"`
+	CmdWakeTimeout   int      `yaml:"cmdWakeTimeout"`
+	Proxy            string   `yaml:"proxy"`
+	Aliases          []string `yaml:"aliases"`
+	Env              []string `yaml:"env"`
+	CheckEndpoint    string   `yaml:"checkEndpoint"`
+	UnloadAfter      int      `yaml:"ttl"`
+	Unlisted         bool     `yaml:"unlisted"`
+	UseModelName     string   `yaml:"useModelName"`
 
 	// #179 for /v1/models
 	Name        string `yaml:"name"`
@@ -49,6 +51,8 @@ func (m *ModelConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		CmdStop:          "",
 		CmdSleep:         "",
 		CmdWake:          "",
+		CmdSleepTimeout:  0,
+		CmdWakeTimeout:   0,
 		Proxy:            "http://localhost:${PORT}",
 		Aliases:          []string{},
 		Env:              []string{},

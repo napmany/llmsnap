@@ -61,6 +61,8 @@ type Process struct {
 	proxyLogger   *LogMonitor
 
 	healthCheckTimeout      int
+	globalSleepTimeout      int
+	globalWakeTimeout       int
 	healthCheckLoopInterval time.Duration
 
 	lastRequestHandledMutex sync.RWMutex
@@ -85,7 +87,7 @@ type Process struct {
 	failedStartCount int
 }
 
-func NewProcess(ID string, healthCheckTimeout int, config config.ModelConfig, processLogger *LogMonitor, proxyLogger *LogMonitor) *Process {
+func NewProcess(ID string, healthCheckTimeout int, sleepTimeout int, wakeTimeout int, config config.ModelConfig, processLogger *LogMonitor, proxyLogger *LogMonitor) *Process {
 	concurrentLimit := 10
 	if config.ConcurrencyLimit > 0 {
 		concurrentLimit = config.ConcurrencyLimit
@@ -118,6 +120,8 @@ func NewProcess(ID string, healthCheckTimeout int, config config.ModelConfig, pr
 		processLogger:           processLogger,
 		proxyLogger:             proxyLogger,
 		healthCheckTimeout:      healthCheckTimeout,
+		globalSleepTimeout:      sleepTimeout,
+		globalWakeTimeout:       wakeTimeout,
 		healthCheckLoopInterval: 5 * time.Second, /* default, can not be set by user - used for testing */
 		state:                   StateStopped,
 
@@ -428,6 +432,40 @@ func (p *Process) Shutdown() {
 	p.forceState(StateShutdown)
 }
 
+// getSleepTimeout returns the sleep timeout to use, resolving in order:
+// 1. Model-specific timeout (if > 0)
+// 2. Global config timeout (if > 0)
+// 3. Default fallback (60s)
+func (p *Process) getSleepTimeout() time.Duration {
+	// Model-specific override
+	if p.config.CmdSleepTimeout > 0 {
+		return time.Duration(p.config.CmdSleepTimeout) * time.Second
+	}
+	// Global config
+	if p.globalSleepTimeout > 0 {
+		return time.Duration(p.globalSleepTimeout) * time.Second
+	}
+	// Default fallback
+	return 60 * time.Second
+}
+
+// getWakeTimeout returns the wake timeout to use, resolving in order:
+// 1. Model-specific timeout (if > 0)
+// 2. Global config timeout (if > 0)
+// 3. Default fallback (60s)
+func (p *Process) getWakeTimeout() time.Duration {
+	// Model-specific override
+	if p.config.CmdWakeTimeout > 0 {
+		return time.Duration(p.config.CmdWakeTimeout) * time.Second
+	}
+	// Global config
+	if p.globalWakeTimeout > 0 {
+		return time.Duration(p.globalWakeTimeout) * time.Second
+	}
+	// Default fallback
+	return 60 * time.Second
+}
+
 // Sleep transitions the process to a sleeping state by executing cmdSleep if defined.
 // If cmdSleep is not defined or fails, it falls back to Stop().
 func (p *Process) Sleep() {
@@ -489,11 +527,12 @@ func (p *Process) executeSleepCommand() error {
 		return fmt.Errorf("failed to sanitize sleep command: %v", err)
 	}
 
-	p.proxyLogger.Infof("<%s> Executing cmdSleep", p.ID)
+	sleepTimeout := p.getSleepTimeout()
+	p.proxyLogger.Infof("<%s> Executing cmdSleep (timeout: %v)", p.ID, sleepTimeout)
 	p.proxyLogger.Debugf("<%s> Sleep command: %s", p.ID, strings.Join(sleepArgs, " "))
 
-	// Create command with 10s timeout (aggressive)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	// Create command with configurable timeout
+	ctx, cancel := context.WithTimeout(context.Background(), sleepTimeout)
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, sleepArgs[0], sleepArgs[1:]...)
@@ -503,7 +542,7 @@ func (p *Process) executeSleepCommand() error {
 
 	if err := cmd.Run(); err != nil {
 		if ctx.Err() == context.DeadlineExceeded {
-			return fmt.Errorf("sleep command timed out after 10s")
+			return fmt.Errorf("sleep command timed out after %v", sleepTimeout)
 		}
 		return fmt.Errorf("sleep command failed (exit code %v): %v", cmd.ProcessState.ExitCode(), err)
 	}
@@ -593,11 +632,12 @@ func (p *Process) executeWakeCommand() error {
 		return fmt.Errorf("failed to sanitize wake command: %v", err)
 	}
 
-	p.proxyLogger.Infof("<%s> Executing cmdWake", p.ID)
+	wakeTimeout := p.getWakeTimeout()
+	p.proxyLogger.Infof("<%s> Executing cmdWake (timeout: %v)", p.ID, wakeTimeout)
 	p.proxyLogger.Debugf("<%s> Wake command: %s", p.ID, strings.Join(wakeArgs, " "))
 
-	// Create command with 30s timeout (aggressive)
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	// Create command with configurable timeout
+	ctx, cancel := context.WithTimeout(context.Background(), wakeTimeout)
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, wakeArgs[0], wakeArgs[1:]...)
@@ -607,7 +647,7 @@ func (p *Process) executeWakeCommand() error {
 
 	if err := cmd.Run(); err != nil {
 		if ctx.Err() == context.DeadlineExceeded {
-			return fmt.Errorf("wake command timed out after 30s")
+			return fmt.Errorf("wake command timed out after %v", wakeTimeout)
 		}
 		return fmt.Errorf("wake command failed (exit code %v): %v", cmd.ProcessState.ExitCode(), err)
 	}

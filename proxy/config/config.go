@@ -111,6 +111,8 @@ type HookOnStartup struct {
 
 type Config struct {
 	HealthCheckTimeout int                    `yaml:"healthCheckTimeout"`
+	CmdSleepTimeout    int                    `yaml:"cmdSleepTimeout"`
+	CmdWakeTimeout     int                    `yaml:"cmdWakeTimeout"`
 	LogRequests        bool                   `yaml:"logRequests"`
 	LogLevel           string                 `yaml:"logLevel"`
 	MetricsMaxInMemory int                    `yaml:"metricsMaxInMemory"`
@@ -170,6 +172,8 @@ func LoadConfigFromReader(r io.Reader) (Config, error) {
 	// default configuration values
 	config := Config{
 		HealthCheckTimeout: 120,
+		CmdSleepTimeout:    60,
+		CmdWakeTimeout:     60,
 		StartPort:          5800,
 		LogLevel:           "info",
 		MetricsMaxInMemory: 1000,
