@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"math/rand"
 	"net"
 	"net/http"
@@ -463,8 +464,8 @@ func (p *Process) Shutdown() {
 // 3. Default fallback (60s)
 func (p *Process) getSleepTimeout() time.Duration {
 	// Model-specific override
-	if p.config.CmdSleepTimeout > 0 {
-		return time.Duration(p.config.CmdSleepTimeout) * time.Second
+	if p.config.SleepTimeout > 0 {
+		return time.Duration(p.config.SleepTimeout) * time.Second
 	}
 	// Global config
 	if p.globalSleepTimeout > 0 {
@@ -480,8 +481,8 @@ func (p *Process) getSleepTimeout() time.Duration {
 // 3. Default fallback (60s)
 func (p *Process) getWakeTimeout() time.Duration {
 	// Model-specific override
-	if p.config.CmdWakeTimeout > 0 {
-		return time.Duration(p.config.CmdWakeTimeout) * time.Second
+	if p.config.WakeTimeout > 0 {
+		return time.Duration(p.config.WakeTimeout) * time.Second
 	}
 	// Global config
 	if p.globalWakeTimeout > 0 {
@@ -491,10 +492,157 @@ func (p *Process) getWakeTimeout() time.Duration {
 	return 60 * time.Second
 }
 
-// Sleep transitions the process to a sleeping state by executing cmdSleep if defined.
+// sendSleepRequest sends HTTP request to sleep endpoint
+func (p *Process) sendSleepRequest() error {
+	if p.config.SleepEndpoint == "" {
+		return fmt.Errorf("sleepEndpoint not configured")
+	}
+
+	// Build full URL from proxy base + endpoint
+	baseURL, err := url.Parse(p.config.Proxy)
+	if err != nil {
+		return fmt.Errorf("failed to parse proxy URL: %v", err)
+	}
+
+	endpointURL, err := url.Parse(p.config.SleepEndpoint)
+	if err != nil {
+		return fmt.Errorf("failed to parse sleep endpoint: %v", err)
+	}
+
+	sleepURL := baseURL.ResolveReference(endpointURL).String()
+
+	// Determine method (default POST)
+	method := p.config.SleepMethod
+	if method == "" {
+		method = "POST"
+	}
+
+	// Get timeout (model-specific or global)
+	timeout := p.getSleepTimeout()
+
+	// Create HTTP client with timeout
+	client := &http.Client{
+		Transport: &http.Transport{
+			DialContext: (&net.Dialer{
+				Timeout: 2 * time.Second, // Connection timeout
+			}).DialContext,
+		},
+		Timeout: timeout, // Overall request timeout
+	}
+
+	// Prepare request body if configured
+	var bodyReader io.Reader
+	if p.config.SleepBody != "" {
+		bodyReader = strings.NewReader(p.config.SleepBody)
+	}
+
+	// Create and execute request
+	req, err := http.NewRequest(method, sleepURL, bodyReader)
+	if err != nil {
+		return fmt.Errorf("failed to create sleep request: %v", err)
+	}
+
+	if p.config.SleepBody != "" {
+		req.Header.Set("Content-Type", "application/json")
+	}
+
+	p.proxyLogger.Debugf("<%s> Sending sleep request: %s %s", p.ID, method, sleepURL)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("sleep request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// Check response status
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("sleep request returned status %d", resp.StatusCode)
+	}
+
+	p.proxyLogger.Debugf("<%s> Sleep request successful (status %d)", p.ID, resp.StatusCode)
+	return nil
+}
+
+// sendWakeRequest sends HTTP request to wake endpoint
+func (p *Process) sendWakeRequest() error {
+	if p.config.WakeEndpoint == "" {
+		return fmt.Errorf("wakeEndpoint not configured")
+	}
+
+	// Build full URL from proxy base + endpoint
+	baseURL, err := url.Parse(p.config.Proxy)
+	if err != nil {
+		return fmt.Errorf("failed to parse proxy URL: %v", err)
+	}
+
+	endpointURL, err := url.Parse(p.config.WakeEndpoint)
+	if err != nil {
+		return fmt.Errorf("failed to parse wake endpoint: %v", err)
+	}
+
+	wakeURL := baseURL.ResolveReference(endpointURL).String()
+
+	// Determine method (default POST)
+	method := p.config.WakeMethod
+	if method == "" {
+		method = "POST"
+	}
+
+	// Get timeout (model-specific or global)
+	timeout := p.getWakeTimeout()
+
+	// Create HTTP client with timeout
+	client := &http.Client{
+		Transport: &http.Transport{
+			DialContext: (&net.Dialer{
+				Timeout: 2 * time.Second, // Connection timeout
+			}).DialContext,
+		},
+		Timeout: timeout, // Overall request timeout
+	}
+
+	// Prepare request body if configured
+	var bodyReader io.Reader
+	if p.config.WakeBody != "" {
+		bodyReader = strings.NewReader(p.config.WakeBody)
+	}
+
+	// Create and execute request
+	req, err := http.NewRequest(method, wakeURL, bodyReader)
+	if err != nil {
+		return fmt.Errorf("failed to create wake request: %v", err)
+	}
+
+	if p.config.WakeBody != "" {
+		req.Header.Set("Content-Type", "application/json")
+	}
+
+	p.proxyLogger.Debugf("<%s> Sending wake request: %s %s", p.ID, method, wakeURL)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("wake request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// Check response status
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("wake request returned status %d", resp.StatusCode)
+	}
+
+	p.proxyLogger.Debugf("<%s> Wake request successful (status %d)", p.ID, resp.StatusCode)
+	return nil
+}
+
+// isSleepEnabled returns true if sleep/wake endpoints are configured
+func (p *Process) isSleepEnabled() bool {
+	return p.config.SleepEndpoint != "" && p.config.WakeEndpoint != ""
+}
+
+// Sleep transitions the process to a sleeping state by executing sleep HTTP request if defined.
 func (p *Process) Sleep() {
-	if p.config.CmdSleep == "" {
-		p.proxyLogger.Errorf("<%s> cmdSleep not defined", p.ID)
+	if !p.isSleepEnabled() {
+		p.proxyLogger.Errorf("<%s> sleep not configured", p.ID)
 		return
 	}
 
@@ -557,37 +705,21 @@ func (p *Process) Sleep() {
 	p.proxyLogger.Infof("<%s> Model sleep completed in %v", p.ID, time.Since(sleepStartTime))
 }
 
-// executeSleepCommand executes the cmdSleep command with timeout
+// executeSleepCommand executes sleep operation via HTTP endpoint
 func (p *Process) executeSleepCommand() error {
 	if p.cmd == nil || p.cmd.Process == nil {
-		return fmt.Errorf("process is nil, cannot execute sleep command")
+		return fmt.Errorf("process is nil, cannot execute sleep")
 	}
 
-	// Replace ${PID} with actual process PID
-	sleepCmd := strings.ReplaceAll(p.config.CmdSleep, "${PID}", fmt.Sprintf("%d", p.cmd.Process.Pid))
-	sleepArgs, err := config.SanitizeCommand(sleepCmd)
-	if err != nil {
-		return fmt.Errorf("failed to sanitize sleep command: %v", err)
+	if p.config.SleepEndpoint == "" {
+		return fmt.Errorf("sleepEndpoint not configured")
 	}
 
 	sleepTimeout := p.getSleepTimeout()
-	p.proxyLogger.Infof("<%s> Executing cmdSleep (timeout: %v)", p.ID, sleepTimeout)
-	p.proxyLogger.Debugf("<%s> Sleep command: %s", p.ID, strings.Join(sleepArgs, " "))
+	p.proxyLogger.Infof("<%s> Executing HTTP sleep request (timeout: %v)", p.ID, sleepTimeout)
 
-	// Create command with configurable timeout
-	ctx, cancel := context.WithTimeout(context.Background(), sleepTimeout)
-	defer cancel()
-
-	cmd := exec.CommandContext(ctx, sleepArgs[0], sleepArgs[1:]...)
-	cmd.Stdout = p.processLogger
-	cmd.Stderr = p.processLogger
-	cmd.Env = p.cmd.Env
-
-	if err := cmd.Run(); err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
-			return fmt.Errorf("sleep command timed out after %v", sleepTimeout)
-		}
-		return fmt.Errorf("sleep command failed (exit code %v): %v", cmd.ProcessState.ExitCode(), err)
+	if err := p.sendSleepRequest(); err != nil {
+		return fmt.Errorf("HTTP sleep request failed: %v", err)
 	}
 
 	return nil
@@ -663,40 +795,23 @@ func (p *Process) wake() error {
 	return nil
 }
 
-// cmdWakeUpstreamProcess wakes the upstream process
+// cmdWakeUpstreamProcess wakes the upstream process via HTTP endpoint
 func (p *Process) cmdWakeUpstreamProcess() error {
-	p.processLogger.Debugf("<%s> cmdWakeUpstreamProcess() initiating wake of upstream process", p.ID)
+	p.processLogger.Debugf("<%s> cmdWakeUpstreamProcess() initiating wake", p.ID)
 
 	if p.cmd == nil || p.cmd.Process == nil {
-		return fmt.Errorf("process is nil, cannot execute wake command")
+		return fmt.Errorf("process is nil, cannot execute wake")
 	}
 
-	// TODO: check http status: 200 - success
-	// Replace ${PID} with actual process PID
-	wakeArgs, err := config.SanitizeCommand(strings.ReplaceAll(p.config.CmdWake, "${PID}", fmt.Sprintf("%d", p.cmd.Process.Pid)))
-	if err != nil {
-		p.proxyLogger.Errorf("<%s> Failed to sanitize wake command: %v", p.ID, err)
-		return err
+	if p.config.WakeEndpoint == "" {
+		return fmt.Errorf("wakeEndpoint not configured")
 	}
 
 	wakeTimeout := p.getWakeTimeout()
-	p.proxyLogger.Infof("<%s> Executing cmdWake (timeout: %v)", p.ID, wakeTimeout)
-	p.proxyLogger.Debugf("<%s> Wake command: %s", p.ID, strings.Join(wakeArgs, " "))
+	p.proxyLogger.Infof("<%s> Executing HTTP wake request (timeout: %v)", p.ID, wakeTimeout)
 
-	// Create command with configurable timeout
-	ctx, cancel := context.WithTimeout(context.Background(), wakeTimeout)
-	defer cancel()
-
-	cmd := exec.CommandContext(ctx, wakeArgs[0], wakeArgs[1:]...)
-	cmd.Stdout = p.processLogger
-	cmd.Stderr = p.processLogger
-	cmd.Env = p.cmd.Env
-
-	if err := cmd.Run(); err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
-			return fmt.Errorf("wake command timed out after %v", wakeTimeout)
-		}
-		return fmt.Errorf("wake command failed (exit code %v): %v", cmd.ProcessState.ExitCode(), err)
+	if err := p.sendWakeRequest(); err != nil {
+		return fmt.Errorf("HTTP wake request failed: %v", err)
 	}
 
 	return nil

@@ -8,19 +8,26 @@ import (
 )
 
 type ModelConfig struct {
-	Cmd              string   `yaml:"cmd"`
-	CmdStop          string   `yaml:"cmdStop"`
-	CmdSleep         string   `yaml:"cmdSleep"`
-	CmdWake          string   `yaml:"cmdWake"`
-	CmdSleepTimeout  int      `yaml:"cmdSleepTimeout"`
-	CmdWakeTimeout   int      `yaml:"cmdWakeTimeout"`
-	Proxy            string   `yaml:"proxy"`
-	Aliases          []string `yaml:"aliases"`
-	Env              []string `yaml:"env"`
-	CheckEndpoint    string   `yaml:"checkEndpoint"`
-	UnloadAfter      int      `yaml:"ttl"`
-	Unlisted         bool     `yaml:"unlisted"`
-	UseModelName     string   `yaml:"useModelName"`
+	Cmd           string   `yaml:"cmd"`
+	CmdStop       string   `yaml:"cmdStop"`
+	Proxy         string   `yaml:"proxy"`
+	Aliases       []string `yaml:"aliases"`
+	Env           []string `yaml:"env"`
+	CheckEndpoint string   `yaml:"checkEndpoint"`
+	UnloadAfter   int      `yaml:"ttl"`
+	Unlisted      bool     `yaml:"unlisted"`
+	UseModelName  string   `yaml:"useModelName"`
+
+	// HTTP-based sleep/wake configuration
+	SleepEndpoint string `yaml:"sleepEndpoint"`
+	SleepMethod   string `yaml:"sleepMethod"`
+	SleepBody     string `yaml:"sleepBody"`
+	SleepTimeout  int    `yaml:"sleepTimeout"`
+
+	WakeEndpoint string `yaml:"wakeEndpoint"`
+	WakeMethod   string `yaml:"wakeMethod"`
+	WakeBody     string `yaml:"wakeBody"`
+	WakeTimeout  int    `yaml:"wakeTimeout"`
 
 	// #179 for /v1/models
 	Name        string `yaml:"name"`
@@ -49,10 +56,6 @@ func (m *ModelConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	defaults := rawModelConfig{
 		Cmd:              "",
 		CmdStop:          "",
-		CmdSleep:         "",
-		CmdWake:          "",
-		CmdSleepTimeout:  0,
-		CmdWakeTimeout:   0,
 		Proxy:            "http://localhost:${PORT}",
 		Aliases:          []string{},
 		Env:              []string{},
@@ -63,6 +66,10 @@ func (m *ModelConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		ConcurrencyLimit: 0,
 		Name:             "",
 		Description:      "",
+		SleepMethod:      "",
+		WakeMethod:       "",
+		SleepTimeout:     0,
+		WakeTimeout:      0,
 	}
 
 	// the default cmdStop to taskkill /f /t /pid ${PID}
@@ -75,6 +82,40 @@ func (m *ModelConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	*m = ModelConfig(defaults)
+
+	// Validation: if one endpoint is set, both must be set
+	if (m.SleepEndpoint != "" && m.WakeEndpoint == "") {
+		return errors.New("wakeEndpoint required when sleepEndpoint is configured")
+	}
+	if (m.WakeEndpoint != "" && m.SleepEndpoint == "") {
+		return errors.New("sleepEndpoint required when wakeEndpoint is configured")
+	}
+
+	// Set default methods if endpoints are configured but methods are empty
+	if m.SleepEndpoint != "" && m.SleepMethod == "" {
+		m.SleepMethod = "POST"
+	}
+	if m.WakeEndpoint != "" && m.WakeMethod == "" {
+		m.WakeMethod = "POST"
+	}
+
+	// Validate HTTP methods
+	validMethods := map[string]bool{"GET": true, "POST": true, "PUT": true, "PATCH": true}
+	if m.SleepMethod != "" && !validMethods[strings.ToUpper(m.SleepMethod)] {
+		return errors.New("invalid sleepMethod: " + m.SleepMethod + " (must be GET, POST, PUT, or PATCH)")
+	}
+	if m.WakeMethod != "" && !validMethods[strings.ToUpper(m.WakeMethod)] {
+		return errors.New("invalid wakeMethod: " + m.WakeMethod + " (must be GET, POST, PUT, or PATCH)")
+	}
+
+	// Normalize methods to uppercase
+	if m.SleepMethod != "" {
+		m.SleepMethod = strings.ToUpper(m.SleepMethod)
+	}
+	if m.WakeMethod != "" {
+		m.WakeMethod = strings.ToUpper(m.WakeMethod)
+	}
+
 	return nil
 }
 

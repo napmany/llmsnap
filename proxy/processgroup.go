@@ -67,7 +67,8 @@ func (pg *ProcessGroup) ProxyRequest(modelID string, writer http.ResponseWriter,
 			if pg.lastUsedProcess != "" {
 				lastProcess := pg.processes[pg.lastUsedProcess]
 				// Use sleep mode if configured, otherwise stop
-				if lastProcess.config.CmdSleep != "" {
+				// TODO: let process decide
+				if lastProcess.isSleepEnabled() {
 					lastProcess.Sleep()
 				} else {
 					lastProcess.Stop()

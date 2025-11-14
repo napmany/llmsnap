@@ -103,7 +103,7 @@ func TestProcess_BrokenModelConfig(t *testing.T) {
 	w := httptest.NewRecorder()
 	process.ProxyRequest(w, req)
 	assert.Equal(t, http.StatusBadGateway, w.Code)
-	assert.Contains(t, w.Body.String(), "unable to start process")
+	assert.Contains(t, w.Body.String(), "unable to makeReady process")
 
 	w = httptest.NewRecorder()
 	process.ProxyRequest(w, req)
