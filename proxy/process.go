@@ -767,7 +767,7 @@ func (p *Process) wake() error {
 		}
 
 		currentState := p.CurrentState()
-		if currentState != StateStarting {
+		if currentState != StateWaking {
 			if currentState == StateStopped {
 				return fmt.Errorf("upstream command exited prematurely but successfully")
 			}
