@@ -33,8 +33,11 @@ const (
 	StateShutdown ProcessState = ProcessState("shutdown")
 
 	// sleep/wake states for models that support sleep mode
-	StateSleeping ProcessState = ProcessState("sleeping")
-	StateWaking   ProcessState = ProcessState("waking")
+	// StateSleepPending is the transitional state while cmdSleep executes (like StateStarting)
+	// StateAsleep is the final state when the model is fully asleep (like StateReady)
+	StateSleepPending ProcessState = ProcessState("sleepPending")
+	StateAsleep       ProcessState = ProcessState("asleep")
+	StateWaking       ProcessState = ProcessState("waking")
 )
 
 type StopStrategy int
@@ -76,6 +79,12 @@ type Process struct {
 
 	// used to block on multiple start() calls
 	waitStarting sync.WaitGroup
+
+	// used to block on multiple Sleep() calls
+	waitSleeping sync.WaitGroup
+
+	// used to block on multiple Wake() calls
+	waitWaking sync.WaitGroup
 
 	// for managing concurrency limits
 	concurrencyLimitSemaphore chan struct{}
@@ -178,10 +187,15 @@ func (p *Process) swapState(expectedState, newState ProcessState) (ProcessState,
 
 	p.state = newState
 
-	// Atomically increment waitStarting when entering StateStarting
-	// This ensures any thread that sees StateStarting will also see the WaitGroup counter incremented
-	if newState == StateStarting {
+	// Atomically increment WaitGroups when entering transitional states
+	// This ensures any thread that sees the transitional state will also see the WaitGroup counter incremented
+	switch newState {
+	case StateStarting:
 		p.waitStarting.Add(1)
+	case StateSleepPending:
+		p.waitSleeping.Add(1)
+	case StateWaking:
+		p.waitWaking.Add(1)
 	}
 
 	p.proxyLogger.Debugf("<%s> swapState() State transitioned from %s to %s", p.ID, expectedState, newState)
@@ -197,15 +211,17 @@ func isValidTransition(from, to ProcessState) bool {
 	case StateStarting:
 		return to == StateReady || to == StateStopping || to == StateStopped
 	case StateReady:
-		return to == StateStopping || to == StateSleeping
+		return to == StateStopping || to == StateSleepPending
 	case StateStopping:
 		return to == StateStopped || to == StateShutdown
 	case StateShutdown:
 		return false // No transitions allowed from this state
-	case StateSleeping:
+	case StateSleepPending:
+		return to == StateAsleep || to == StateStopping || to == StateStopped
+	case StateAsleep:
 		return to == StateWaking || to == StateStopping
 	case StateWaking:
-		return to == StateReady || to == StateStopping
+		return to == StateReady || to == StateStopping || to == StateStopped
 	}
 	return false
 }
@@ -225,6 +241,20 @@ func (p *Process) forceState(newState ProcessState) {
 	p.state = newState
 }
 
+func (p *Process) makeReady() error {
+	// If process is sleeping or sleep pending, wake it instead of starting
+	currentState := p.CurrentState()
+	if currentState == StateSleepPending || currentState == StateAsleep {
+		p.proxyLogger.Debugf("<%s> Process is asleep or sleep pending, waking instead of starting", p.ID)
+		if err := p.wake(); err != nil {
+			return p.start()
+		}
+	} else {
+		return p.start()
+	}
+	return nil
+}
+
 // start starts the upstream command, checks the health endpoint, and sets the state to Ready
 // it is a private method because starting is automatic but stopping can be called
 // at any time.
@@ -232,13 +262,6 @@ func (p *Process) start() error {
 
 	if p.config.Proxy == "" {
 		return fmt.Errorf("can not start(), upstream proxy missing")
-	}
-
-	// If process is sleeping, wake it instead of starting
-	currentState := p.CurrentState()
-	if currentState == StateSleeping {
-		p.proxyLogger.Debugf("<%s> Process is sleeping, waking instead of starting", p.ID)
-		return p.Wake()
 	}
 
 	args, err := p.config.SanitizedCommand()
@@ -351,6 +374,19 @@ func (p *Process) start() error {
 		}
 	}
 
+	// Start UnloadAfter monitoring
+	p.startUnloadMonitoring()
+
+	if curState, err := p.swapState(StateStarting, StateReady); err != nil {
+		return fmt.Errorf("failed to set Process state to ready: current state: %v, error: %v", curState, err)
+	} else {
+		p.failedStartCount = 0
+		return nil
+	}
+}
+
+// startUnloadMonitoring begins TTL monitoring for automatic model unloading.
+func (p *Process) startUnloadMonitoring() {
 	if p.config.UnloadAfter > 0 {
 		// start a goroutine to check every second if
 		// the process should be stopped
@@ -368,25 +404,12 @@ func (p *Process) start() error {
 				}
 
 				if time.Since(p.getLastRequestHandled()) > maxDuration {
-					// Use sleep mode if configured, otherwise stop
-					if p.config.CmdSleep != "" {
-						p.proxyLogger.Infof("<%s> Sleeping model, TTL of %ds reached", p.ID, p.config.UnloadAfter)
-						p.Sleep()
-					} else {
-						p.proxyLogger.Infof("<%s> Unloading model, TTL of %ds reached", p.ID, p.config.UnloadAfter)
-						p.Stop()
-					}
+					p.proxyLogger.Infof("<%s> Unloading model, TTL of %ds reached", p.ID, p.config.UnloadAfter)
+					p.Stop()
 					return
 				}
 			}
 		}()
-	}
-
-	if curState, err := p.swapState(StateStarting, StateReady); err != nil {
-		return fmt.Errorf("failed to set Process state to ready: current state: %v, error: %v", curState, err)
-	} else {
-		p.failedStartCount = 0
-		return nil
 	}
 }
 
@@ -404,14 +427,16 @@ func (p *Process) Stop() {
 
 // StopImmediately will transition the process to the stopping state and stop the process with a SIGTERM.
 // If the process does not stop within the specified timeout, it will be forcefully stopped with a SIGKILL.
+// TODO: validate transition and transit within one lock
 func (p *Process) StopImmediately() {
-	if !isValidTransition(p.CurrentState(), StateStopping) {
+	initState := p.CurrentState()
+	if !isValidTransition(initState, StateStopping) {
 		return
 	}
 
-	p.proxyLogger.Debugf("<%s> Stopping process, current state: %s", p.ID, p.CurrentState())
-	if curState, err := p.swapState(StateReady, StateStopping); err != nil {
-		p.proxyLogger.Infof("<%s> Stop() Ready -> StateStopping err: %v, current state: %v", p.ID, err, curState)
+	p.proxyLogger.Debugf("<%s> Stopping process, current state: %s", p.ID, initState)
+	if curState, err := p.swapState(initState, StateStopping); err != nil {
+		p.proxyLogger.Infof("<%s> Stop() %v -> StateStopping err: %v, current state: %v", p.ID, initState, err, curState)
 		return
 	}
 
@@ -467,24 +492,30 @@ func (p *Process) getWakeTimeout() time.Duration {
 }
 
 // Sleep transitions the process to a sleeping state by executing cmdSleep if defined.
-// If cmdSleep is not defined or fails, it falls back to Stop().
 func (p *Process) Sleep() {
-	// If cmdSleep is not defined, fall back to Stop()
 	if p.config.CmdSleep == "" {
-		p.proxyLogger.Debugf("<%s> cmdSleep not defined, falling back to Stop()", p.ID)
-		p.Stop()
+		p.proxyLogger.Errorf("<%s> cmdSleep not defined", p.ID)
 		return
 	}
 
-	// Check if already sleeping (idempotent)
+	// Handle concurrent Sleep() calls and already-asleep state
 	currentState := p.CurrentState()
-	if currentState == StateSleeping {
-		p.proxyLogger.Debugf("<%s> Already sleeping", p.ID)
-		return
+
+	// If sleep is already in progress, wait for it to complete
+	if currentState == StateSleepPending {
+		p.proxyLogger.Debugf("<%s> Sleep already in progress, waiting for completion", p.ID)
+		p.waitSleeping.Wait()
+		if state := p.CurrentState(); state == StateAsleep {
+			p.proxyLogger.Debugf("<%s> Sleep completed by concurrent call", p.ID)
+			return
+		} else {
+			p.proxyLogger.Warnf("<%s> Sleep operation failed, state: %v", p.ID, state)
+			return
+		}
 	}
 
 	// Can only sleep from Ready state
-	if !isValidTransition(currentState, StateSleeping) {
+	if !isValidTransition(currentState, StateSleepPending) {
 		p.proxyLogger.Warnf("<%s> Cannot sleep from state %s", p.ID, currentState)
 		return
 	}
@@ -493,21 +524,33 @@ func (p *Process) Sleep() {
 	p.proxyLogger.Debugf("<%s> Sleep(): Waiting for inflight requests to complete", p.ID)
 	p.inFlightRequests.Wait()
 
-	// Transition to sleeping state
-	if curState, err := p.swapState(StateReady, StateSleeping); err != nil {
-		p.proxyLogger.Warnf("<%s> Failed to transition to sleeping: %v, current state: %v", p.ID, err, curState)
+	// Transition to sleep pending state
+	if curState, err := p.swapState(StateReady, StateSleepPending); err != nil {
+		p.proxyLogger.Warnf("<%s> failed to transition to sleep pending: current state: %v, error: %v", p.ID, curState, err)
 		return
 	}
+
+	// waitSleeping.Add(1) is now called atomically in swapState()
+	defer p.waitSleeping.Done()
 
 	// Execute cmdSleep
 	sleepStartTime := time.Now()
 	if err := p.executeSleepCommand(); err != nil {
 		p.proxyLogger.Errorf("<%s> cmdSleep failed, falling back to Stop(): %v", p.ID, err)
 		// Transition to stopping and call Stop
-		if _, swapErr := p.swapState(StateSleeping, StateStopping); swapErr != nil {
-			p.proxyLogger.Errorf("<%s> Failed to transition from sleeping to stopping: %v", p.ID, swapErr)
+		if _, swapErr := p.swapState(StateSleepPending, StateStopping); swapErr != nil {
+			p.proxyLogger.Errorf("<%s> failed to transition from sleep pending to stopping: %v", p.ID, swapErr)
+			return
 		}
-		p.stopCommand()
+		p.StopImmediately()
+		return
+	}
+
+	// Transition to asleep state
+	if curState, err := p.swapState(StateSleepPending, StateAsleep); err != nil {
+		p.proxyLogger.Errorf("<%s> failed to transition to asleep: current state: %v, error: %v", p.ID, curState, err)
+		// If we can't transition to asleep, fall back to stopping
+		p.StopImmediately()
 		return
 	}
 
@@ -550,86 +593,90 @@ func (p *Process) executeSleepCommand() error {
 	return nil
 }
 
-// Wake transitions the process from sleeping to ready by executing cmdWake.
-// If wake fails, the process is restarted from scratch.
-func (p *Process) Wake() error {
-	currentState := p.CurrentState()
-
-	// Can only wake from sleeping state
-	if currentState != StateSleeping {
-		return fmt.Errorf("cannot wake from state %s, must be sleeping", currentState)
+// wake transitions the process from asleep to ready by executing cmdWake.
+func (p *Process) wake() error {
+	if curState, err := p.swapState(StateAsleep, StateWaking); err != nil {
+		if err == ErrExpectedStateMismatch {
+			// already waking, just wait for it to complete and expect
+			// it to be be in the Ready start after. If not, return an error
+			if curState == StateWaking {
+				p.waitWaking.Wait()
+				if state := p.CurrentState(); state == StateReady {
+					return nil
+				} else {
+					return fmt.Errorf("process was already waking but wound up in state %v", state)
+				}
+			} else {
+				return fmt.Errorf("processes was in state %v when wake() was called", curState)
+			}
+		} else {
+			return fmt.Errorf("failed to set Process state to waking: current state: %v, error: %v", curState, err)
+		}
 	}
 
-	// Transition to waking state
-	if curState, err := p.swapState(StateSleeping, StateWaking); err != nil {
-		return fmt.Errorf("failed to transition to waking: %v, current state: %v", err, curState)
-	}
+	// waitWaking.Add(1) is called atomically in swapState()
+	defer p.waitWaking.Done()
 
 	wakeStartTime := time.Now()
 
 	// Execute cmdWake
-	if err := p.executeWakeCommand(); err != nil {
-		p.proxyLogger.Errorf("<%s> cmdWake failed, restarting process: %v", p.ID, err)
-		// Transition to stopping, then restart
-		if _, swapErr := p.swapState(StateWaking, StateStopping); swapErr != nil {
-			p.proxyLogger.Errorf("<%s> Failed to transition from waking to stopping: %v", p.ID, swapErr)
-		}
-		p.stopCommand()
-		// Wait for stop to complete, then start fresh
-		if _, swapErr := p.swapState(StateStopping, StateStopped); swapErr != nil {
-			p.proxyLogger.Errorf("<%s> Failed to transition to stopped: %v", p.ID, swapErr)
-		}
-		return p.start()
+	if err := p.cmdWakeUpstreamProcess(); err != nil {
+		p.proxyLogger.Errorf("<%s> cmdWake failed: %v", p.ID, err)
+		p.StopImmediately()
+		return fmt.Errorf("wake command failed: %v", err)
 	}
 
-	// Run health check to verify wake was successful
-	healthURL := p.config.Proxy + p.config.CheckEndpoint
-	p.proxyLogger.Debugf("<%s> Running health check after wake: %s", p.ID, healthURL)
+	checkEndpoint := strings.TrimSpace(p.config.CheckEndpoint)
+	if checkEndpoint != "none" {
+		proxyTo := p.config.Proxy
+		healthURL, err := url.JoinPath(proxyTo, checkEndpoint)
+		if err != nil {
+			return fmt.Errorf("failed to create health check URL proxy=%s and checkEndpoint=%s", proxyTo, checkEndpoint)
+		}
 
-	timeout := time.Duration(p.healthCheckTimeout) * time.Second
-	healthCheckStart := time.Now()
+		currentState := p.CurrentState()
+		if currentState != StateStarting {
+			if currentState == StateStopped {
+				return fmt.Errorf("upstream command exited prematurely but successfully")
+			}
+			return errors.New("health check interrupted due to shutdown")
+		}
 
-	for {
 		if err := p.checkHealthEndpoint(healthURL); err == nil {
-			break // Health check passed
+			p.proxyLogger.Infof("<%s> Health check passed on %s", p.ID, healthURL)
+		} else {
+			p.proxyLogger.Errorf("<%s> Health check timed out after wake", p.ID)
+			p.StopImmediately()
+			return err
 		}
-
-		if time.Since(healthCheckStart) > timeout {
-			p.proxyLogger.Errorf("<%s> Health check failed after wake, restarting process", p.ID)
-			// Transition to stopping, then restart
-			if _, swapErr := p.swapState(StateWaking, StateStopping); swapErr != nil {
-				p.proxyLogger.Errorf("<%s> Failed to transition from waking to stopping: %v", p.ID, swapErr)
-			}
-			p.stopCommand()
-			if _, swapErr := p.swapState(StateStopping, StateStopped); swapErr != nil {
-				p.proxyLogger.Errorf("<%s> Failed to transition to stopped: %v", p.ID, swapErr)
-			}
-			return p.start()
-		}
-
-		time.Sleep(p.healthCheckLoopInterval)
 	}
+
+	// Start UnloadAfter monitoring (same as start() to ensure consistent behavior)
+	p.startUnloadMonitoring()
 
 	// Transition to ready state
 	if curState, err := p.swapState(StateWaking, StateReady); err != nil {
-		return fmt.Errorf("failed to transition to ready after wake: %v, current state: %v", err, curState)
+		return fmt.Errorf("failed to transition to ready after wake: current state: %v, error: %v", curState, err)
 	}
 
 	p.proxyLogger.Infof("<%s> Model wake completed in %v", p.ID, time.Since(wakeStartTime))
 	return nil
 }
 
-// executeWakeCommand executes the cmdWake command with timeout
-func (p *Process) executeWakeCommand() error {
+// cmdWakeUpstreamProcess wakes the upstream process
+func (p *Process) cmdWakeUpstreamProcess() error {
+	p.processLogger.Debugf("<%s> cmdWakeUpstreamProcess() initiating wake of upstream process", p.ID)
+
 	if p.cmd == nil || p.cmd.Process == nil {
 		return fmt.Errorf("process is nil, cannot execute wake command")
 	}
 
+	// TODO: check http status: 200 - success
 	// Replace ${PID} with actual process PID
-	wakeCmd := strings.ReplaceAll(p.config.CmdWake, "${PID}", fmt.Sprintf("%d", p.cmd.Process.Pid))
-	wakeArgs, err := config.SanitizeCommand(wakeCmd)
+	wakeArgs, err := config.SanitizeCommand(strings.ReplaceAll(p.config.CmdWake, "${PID}", fmt.Sprintf("%d", p.cmd.Process.Pid)))
 	if err != nil {
-		return fmt.Errorf("failed to sanitize wake command: %v", err)
+		p.proxyLogger.Errorf("<%s> Failed to sanitize wake command: %v", p.ID, err)
+		return err
 	}
 
 	wakeTimeout := p.getWakeTimeout()
@@ -723,7 +770,7 @@ func (p *Process) ProxyRequest(w http.ResponseWriter, r *http.Request) {
 
 	// prevent new requests from being made while stopping or irrecoverable
 	currentState := p.CurrentState()
-	if currentState == StateShutdown || currentState == StateStopping {
+	if currentState == StateShutdown || currentState == StateStopping || currentState == StateSleepPending {
 		http.Error(w, fmt.Sprintf("Process can not ProxyRequest, state is %s", currentState), http.StatusServiceUnavailable)
 		return
 	}
@@ -762,8 +809,8 @@ func (p *Process) ProxyRequest(w http.ResponseWriter, r *http.Request) {
 		}
 
 		beginStartTime := time.Now()
-		if err := p.start(); err != nil {
-			errstr := fmt.Sprintf("unable to start process: %s", err)
+		if err := p.makeReady(); err != nil {
+			errstr := fmt.Sprintf("unable to makeReady process: %s", err)
 			cancelLoadCtx()
 			if srw != nil {
 				srw.sendData(fmt.Sprintf("Unable to swap model err: %s\n", errstr))
