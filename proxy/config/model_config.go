@@ -2,10 +2,19 @@ package config
 
 import (
 	"errors"
+	"fmt"
 	"runtime"
 	"slices"
 	"strings"
 )
+
+// HTTPEndpoint represents a single HTTP endpoint configuration
+type HTTPEndpoint struct {
+	Endpoint string `yaml:"endpoint"` // URL path (e.g., "/wake_up")
+	Method   string `yaml:"method"`   // HTTP method (GET, POST, PUT, PATCH)
+	Body     string `yaml:"body"`     // Optional request body (JSON string)
+	Timeout  int    `yaml:"timeout"`  // Optional per-endpoint timeout (seconds)
+}
 
 type ModelConfig struct {
 	Cmd           string   `yaml:"cmd"`
@@ -18,16 +27,9 @@ type ModelConfig struct {
 	Unlisted      bool     `yaml:"unlisted"`
 	UseModelName  string   `yaml:"useModelName"`
 
-	// HTTP-based sleep/wake configuration
-	SleepEndpoint string `yaml:"sleepEndpoint"`
-	SleepMethod   string `yaml:"sleepMethod"`
-	SleepBody     string `yaml:"sleepBody"`
-	SleepTimeout  int    `yaml:"sleepTimeout"`
-
-	WakeEndpoint string `yaml:"wakeEndpoint"`
-	WakeMethod   string `yaml:"wakeMethod"`
-	WakeBody     string `yaml:"wakeBody"`
-	WakeTimeout  int    `yaml:"wakeTimeout"`
+	// Array-based sleep/wake configuration (required for sleep/wake)
+	SleepEndpoints []HTTPEndpoint `yaml:"sleepEndpoints"`
+	WakeEndpoints  []HTTPEndpoint `yaml:"wakeEndpoints"`
 
 	// #179 for /v1/models
 	Name        string `yaml:"name"`
@@ -66,10 +68,6 @@ func (m *ModelConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		ConcurrencyLimit: 0,
 		Name:             "",
 		Description:      "",
-		SleepMethod:      "",
-		WakeMethod:       "",
-		SleepTimeout:     0,
-		WakeTimeout:      0,
 	}
 
 	// the default cmdStop to taskkill /f /t /pid ${PID}
@@ -83,37 +81,55 @@ func (m *ModelConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 	*m = ModelConfig(defaults)
 
-	// Validation: if one endpoint is set, both must be set
-	if (m.SleepEndpoint != "" && m.WakeEndpoint == "") {
-		return errors.New("wakeEndpoint required when sleepEndpoint is configured")
+	// Validation: if one is set, both must be set
+	hasSleep := len(m.SleepEndpoints) > 0
+	hasWake := len(m.WakeEndpoints) > 0
+
+	if hasSleep && !hasWake {
+		return errors.New("wakeEndpoints required when sleepEndpoints is configured")
 	}
-	if (m.WakeEndpoint != "" && m.SleepEndpoint == "") {
-		return errors.New("sleepEndpoint required when wakeEndpoint is configured")
+	if hasWake && !hasSleep {
+		return errors.New("sleepEndpoints required when wakeEndpoints is configured")
 	}
 
-	// Set default methods if endpoints are configured but methods are empty
-	if m.SleepEndpoint != "" && m.SleepMethod == "" {
-		m.SleepMethod = "POST"
-	}
-	if m.WakeEndpoint != "" && m.WakeMethod == "" {
-		m.WakeMethod = "POST"
+	// Validate and normalize each endpoint
+	for i := range m.SleepEndpoints {
+		if err := m.validateEndpoint(&m.SleepEndpoints[i], "sleep"); err != nil {
+			return fmt.Errorf("sleepEndpoints[%d]: %v", i, err)
+		}
 	}
 
-	// Validate HTTP methods
+	for i := range m.WakeEndpoints {
+		if err := m.validateEndpoint(&m.WakeEndpoints[i], "wake"); err != nil {
+			return fmt.Errorf("wakeEndpoints[%d]: %v", i, err)
+		}
+	}
+
+	return nil
+}
+
+func (m *ModelConfig) validateEndpoint(ep *HTTPEndpoint, context string) error {
+	// Endpoint path is required
+	if ep.Endpoint == "" {
+		return errors.New("endpoint path is required")
+	}
+
+	// Default method to POST if not specified
+	if ep.Method == "" {
+		ep.Method = "POST"
+	}
+
+	// Validate HTTP method
 	validMethods := map[string]bool{"GET": true, "POST": true, "PUT": true, "PATCH": true}
-	if m.SleepMethod != "" && !validMethods[strings.ToUpper(m.SleepMethod)] {
-		return errors.New("invalid sleepMethod: " + m.SleepMethod + " (must be GET, POST, PUT, or PATCH)")
+	upperMethod := strings.ToUpper(ep.Method)
+	if !validMethods[upperMethod] {
+		return fmt.Errorf("invalid method %q (must be GET, POST, PUT, or PATCH)", ep.Method)
 	}
-	if m.WakeMethod != "" && !validMethods[strings.ToUpper(m.WakeMethod)] {
-		return errors.New("invalid wakeMethod: " + m.WakeMethod + " (must be GET, POST, PUT, or PATCH)")
-	}
+	ep.Method = upperMethod
 
-	// Normalize methods to uppercase
-	if m.SleepMethod != "" {
-		m.SleepMethod = strings.ToUpper(m.SleepMethod)
-	}
-	if m.WakeMethod != "" {
-		m.WakeMethod = strings.ToUpper(m.WakeMethod)
+	// Timeout validation (must be non-negative)
+	if ep.Timeout < 0 {
+		return fmt.Errorf("timeout must be non-negative, got %d", ep.Timeout)
 	}
 
 	return nil

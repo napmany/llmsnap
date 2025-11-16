@@ -271,13 +271,19 @@ func LoadConfigFromReader(r io.Reader) (Config, error) {
 			// Substitute in command fields
 			modelConfig.Cmd = strings.ReplaceAll(modelConfig.Cmd, macroSlug, macroStr)
 			modelConfig.CmdStop = strings.ReplaceAll(modelConfig.CmdStop, macroSlug, macroStr)
-			modelConfig.SleepEndpoint = strings.ReplaceAll(modelConfig.SleepEndpoint, macroSlug, macroStr)
-			modelConfig.WakeEndpoint = strings.ReplaceAll(modelConfig.WakeEndpoint, macroSlug, macroStr)
-			modelConfig.SleepBody = strings.ReplaceAll(modelConfig.SleepBody, macroSlug, macroStr)
-			modelConfig.WakeBody = strings.ReplaceAll(modelConfig.WakeBody, macroSlug, macroStr)
 			modelConfig.Proxy = strings.ReplaceAll(modelConfig.Proxy, macroSlug, macroStr)
 			modelConfig.CheckEndpoint = strings.ReplaceAll(modelConfig.CheckEndpoint, macroSlug, macroStr)
 			modelConfig.Filters.StripParams = strings.ReplaceAll(modelConfig.Filters.StripParams, macroSlug, macroStr)
+
+			// Substitute in sleep/wake endpoint arrays
+			for j := range modelConfig.SleepEndpoints {
+				modelConfig.SleepEndpoints[j].Endpoint = strings.ReplaceAll(modelConfig.SleepEndpoints[j].Endpoint, macroSlug, macroStr)
+				modelConfig.SleepEndpoints[j].Body = strings.ReplaceAll(modelConfig.SleepEndpoints[j].Body, macroSlug, macroStr)
+			}
+			for j := range modelConfig.WakeEndpoints {
+				modelConfig.WakeEndpoints[j].Endpoint = strings.ReplaceAll(modelConfig.WakeEndpoints[j].Endpoint, macroSlug, macroStr)
+				modelConfig.WakeEndpoints[j].Body = strings.ReplaceAll(modelConfig.WakeEndpoints[j].Body, macroSlug, macroStr)
+			}
 
 			// Substitute in metadata (recursive)
 			if len(modelConfig.Metadata) > 0 {
@@ -307,11 +313,17 @@ func LoadConfigFromReader(r io.Reader) (Config, error) {
 
 			modelConfig.Cmd = strings.ReplaceAll(modelConfig.Cmd, macroSlug, macroStr)
 			modelConfig.CmdStop = strings.ReplaceAll(modelConfig.CmdStop, macroSlug, macroStr)
-			modelConfig.SleepEndpoint = strings.ReplaceAll(modelConfig.SleepEndpoint, macroSlug, macroStr)
-			modelConfig.WakeEndpoint = strings.ReplaceAll(modelConfig.WakeEndpoint, macroSlug, macroStr)
-			modelConfig.SleepBody = strings.ReplaceAll(modelConfig.SleepBody, macroSlug, macroStr)
-			modelConfig.WakeBody = strings.ReplaceAll(modelConfig.WakeBody, macroSlug, macroStr)
 			modelConfig.Proxy = strings.ReplaceAll(modelConfig.Proxy, macroSlug, macroStr)
+
+			// Substitute PORT in sleep/wake endpoint arrays
+			for j := range modelConfig.SleepEndpoints {
+				modelConfig.SleepEndpoints[j].Endpoint = strings.ReplaceAll(modelConfig.SleepEndpoints[j].Endpoint, macroSlug, macroStr)
+				modelConfig.SleepEndpoints[j].Body = strings.ReplaceAll(modelConfig.SleepEndpoints[j].Body, macroSlug, macroStr)
+			}
+			for j := range modelConfig.WakeEndpoints {
+				modelConfig.WakeEndpoints[j].Endpoint = strings.ReplaceAll(modelConfig.WakeEndpoints[j].Endpoint, macroSlug, macroStr)
+				modelConfig.WakeEndpoints[j].Body = strings.ReplaceAll(modelConfig.WakeEndpoints[j].Body, macroSlug, macroStr)
+			}
 
 			// Substitute PORT in metadata
 			if len(modelConfig.Metadata) > 0 {
@@ -330,10 +342,6 @@ func LoadConfigFromReader(r io.Reader) (Config, error) {
 		fieldMap := map[string]string{
 			"cmd":                 modelConfig.Cmd,
 			"cmdStop":             modelConfig.CmdStop,
-			"sleepEndpoint":       modelConfig.SleepEndpoint,
-			"wakeEndpoint":        modelConfig.WakeEndpoint,
-			"sleepBody":           modelConfig.SleepBody,
-			"wakeBody":            modelConfig.WakeBody,
 			"proxy":               modelConfig.Proxy,
 			"checkEndpoint":       modelConfig.CheckEndpoint,
 			"filters.stripParams": modelConfig.Filters.StripParams,
@@ -352,6 +360,32 @@ func LoadConfigFromReader(r io.Reader) (Config, error) {
 				}
 				// Any other macro is unknown
 				return Config{}, fmt.Errorf("unknown macro '${%s}' found in %s.%s", macroName, modelId, fieldName)
+			}
+		}
+
+		// Check sleep/wake endpoint arrays for unknown macros
+		for i, endpoint := range modelConfig.SleepEndpoints {
+			for _, fieldValue := range []string{endpoint.Endpoint, endpoint.Body} {
+				matches := macroPatternRegex.FindAllStringSubmatch(fieldValue, -1)
+				for _, match := range matches {
+					macroName := match[1]
+					if macroName == "PORT" || macroName == "MODEL_ID" {
+						return Config{}, fmt.Errorf("macro '${%s}' should have been substituted in %s.sleepEndpoints[%d]", macroName, modelId, i)
+					}
+					return Config{}, fmt.Errorf("unknown macro '${%s}' found in %s.sleepEndpoints[%d]", macroName, modelId, i)
+				}
+			}
+		}
+		for i, endpoint := range modelConfig.WakeEndpoints {
+			for _, fieldValue := range []string{endpoint.Endpoint, endpoint.Body} {
+				matches := macroPatternRegex.FindAllStringSubmatch(fieldValue, -1)
+				for _, match := range matches {
+					macroName := match[1]
+					if macroName == "PORT" || macroName == "MODEL_ID" {
+						return Config{}, fmt.Errorf("macro '${%s}' should have been substituted in %s.wakeEndpoints[%d]", macroName, modelId, i)
+					}
+					return Config{}, fmt.Errorf("unknown macro '${%s}' found in %s.wakeEndpoints[%d]", macroName, modelId, i)
+				}
 			}
 		}
 
