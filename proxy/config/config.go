@@ -110,15 +110,15 @@ type HookOnStartup struct {
 }
 
 type Config struct {
-	HealthCheckTimeout int                    `yaml:"healthCheckTimeout"`
-	SleepRequestTimeout    int                    `yaml:"sleepRequestTimeout"`
-	WakeRequestTimeout     int                    `yaml:"wakeRequestTimeout"`
-	LogRequests        bool                   `yaml:"logRequests"`
-	LogLevel           string                 `yaml:"logLevel"`
-	MetricsMaxInMemory int                    `yaml:"metricsMaxInMemory"`
-	Models             map[string]ModelConfig `yaml:"models"` /* key is model ID */
-	Profiles           map[string][]string    `yaml:"profiles"`
-	Groups             map[string]GroupConfig `yaml:"groups"` /* key is group ID */
+	HealthCheckTimeout  int                    `yaml:"healthCheckTimeout"`
+	SleepRequestTimeout int                    `yaml:"sleepRequestTimeout"`
+	WakeRequestTimeout  int                    `yaml:"wakeRequestTimeout"`
+	LogRequests         bool                   `yaml:"logRequests"`
+	LogLevel            string                 `yaml:"logLevel"`
+	MetricsMaxInMemory  int                    `yaml:"metricsMaxInMemory"`
+	Models              map[string]ModelConfig `yaml:"models"` /* key is model ID */
+	Profiles            map[string][]string    `yaml:"profiles"`
+	Groups              map[string]GroupConfig `yaml:"groups"` /* key is group ID */
 
 	// for key/value replacements in model's cmd, cmdStop, proxy, checkEndPoint
 	Macros MacroList `yaml:"macros"`
@@ -174,12 +174,12 @@ func LoadConfigFromReader(r io.Reader) (Config, error) {
 
 	// default configuration values
 	config := Config{
-		HealthCheckTimeout: 120,
-		SleepRequestTimeout:    10,
-		WakeRequestTimeout:    10,
-		StartPort:          5800,
-		LogLevel:           "info",
-		MetricsMaxInMemory: 1000,
+		HealthCheckTimeout:  120,
+		SleepRequestTimeout: 10,
+		WakeRequestTimeout:  10,
+		StartPort:           5800,
+		LogLevel:            "info",
+		MetricsMaxInMemory:  1000,
 	}
 	err = yaml.Unmarshal(data, &config)
 	if err != nil {
