@@ -65,8 +65,6 @@ type Process struct {
 	proxyLogger   *LogMonitor
 
 	healthCheckTimeout      int
-	globalSleepTimeout      int
-	globalWakeTimeout       int
 	healthCheckLoopInterval time.Duration
 
 	lastRequestHandledMutex sync.RWMutex
@@ -97,7 +95,7 @@ type Process struct {
 	failedStartCount int
 }
 
-func NewProcess(ID string, healthCheckTimeout int, sleepTimeout int, wakeTimeout int, config config.ModelConfig, processLogger *LogMonitor, proxyLogger *LogMonitor) *Process {
+func NewProcess(ID string, healthCheckTimeout int, config config.ModelConfig, processLogger *LogMonitor, proxyLogger *LogMonitor) *Process {
 	concurrentLimit := 10
 	if config.ConcurrencyLimit > 0 {
 		concurrentLimit = config.ConcurrencyLimit
@@ -130,8 +128,6 @@ func NewProcess(ID string, healthCheckTimeout int, sleepTimeout int, wakeTimeout
 		processLogger:           processLogger,
 		proxyLogger:             proxyLogger,
 		healthCheckTimeout:      healthCheckTimeout,
-		globalSleepTimeout:      sleepTimeout,
-		globalWakeTimeout:       wakeTimeout,
 		healthCheckLoopInterval: 5 * time.Second, /* default, can not be set by user - used for testing */
 		state:                   StateStopped,
 
@@ -458,119 +454,19 @@ func (p *Process) Shutdown() {
 	p.forceState(StateShutdown)
 }
 
-// getSleepTimeout returns the default sleep timeout to use, resolving in order:
-// 1. Global config timeout (if > 0)
-// 2. Default fallback (60s)
-// Note: Per-endpoint timeouts are handled in sendHTTPRequest
-func (p *Process) getSleepTimeout() time.Duration {
-	// Global config
-	if p.globalSleepTimeout > 0 {
-		return time.Duration(p.globalSleepTimeout) * time.Second
-	}
-	// Default fallback
-	return 60 * time.Second
-}
-
-// getWakeTimeout returns the default wake timeout to use, resolving in order:
-// 1. Global config timeout (if > 0)
-// 2. Default fallback (60s)
-// Note: Per-endpoint timeouts are handled in sendHTTPRequest
-func (p *Process) getWakeTimeout() time.Duration {
-	// Global config
-	if p.globalWakeTimeout > 0 {
-		return time.Duration(p.globalWakeTimeout) * time.Second
-	}
-	// Default fallback
-	return 60 * time.Second
-}
-
-// sendHTTPRequest sends a single HTTP request based on endpoint config
-func (p *Process) sendHTTPRequest(endpoint config.HTTPEndpoint, operationName string, defaultTimeout time.Duration) error {
-	if endpoint.Endpoint == "" {
-		return fmt.Errorf("%s endpoint not configured", operationName)
-	}
-
-	// Build full URL from proxy base + endpoint
-	baseURL, err := url.Parse(p.config.Proxy)
-	if err != nil {
-		return fmt.Errorf("failed to parse proxy URL: %v", err)
-	}
-
-	endpointURL, err := url.Parse(endpoint.Endpoint)
-	if err != nil {
-		return fmt.Errorf("failed to parse endpoint: %v", err)
-	}
-
-	fullURL := baseURL.ResolveReference(endpointURL).String()
-
-	// Determine timeout (endpoint-specific or default)
-	timeout := defaultTimeout
-	if endpoint.Timeout > 0 {
-		timeout = time.Duration(endpoint.Timeout) * time.Second
-	}
-
-	// Create HTTP client with timeout
-	client := &http.Client{
-		Transport: &http.Transport{
-			DialContext: (&net.Dialer{
-				Timeout: 2 * time.Second, // Connection timeout
-			}).DialContext,
-		},
-		Timeout: timeout,
-	}
-
-	// Prepare request body if configured
-	var bodyReader io.Reader
-	if endpoint.Body != "" {
-		bodyReader = strings.NewReader(endpoint.Body)
-	}
-
-	// Create and execute request
-	req, err := http.NewRequest(endpoint.Method, fullURL, bodyReader)
-	if err != nil {
-		return fmt.Errorf("failed to create %s request: %v", operationName, err)
-	}
-
-	if endpoint.Body != "" {
-		req.Header.Set("Content-Type", "application/json")
-	}
-
-	p.proxyLogger.Debugf("<%s> Sending %s request: %s %s", p.ID, operationName, endpoint.Method, fullURL)
-	if endpoint.Body != "" {
-		p.proxyLogger.Debugf("<%s> Request body: %s", p.ID, endpoint.Body)
-	}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return fmt.Errorf("%s request failed: %v", operationName, err)
-	}
-	defer resp.Body.Close()
-
-	// Check response status
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("%s request returned status %d: %s", operationName, resp.StatusCode, string(body))
-	}
-
-	p.proxyLogger.Debugf("<%s> %s request successful (status %d)", p.ID, operationName, resp.StatusCode)
-	return nil
-}
-
 // sendSleepRequests sends all sleep requests in sequence
 func (p *Process) sendSleepRequests() error {
 	if len(p.config.SleepEndpoints) == 0 {
 		return fmt.Errorf("no sleep endpoints configured")
 	}
 
-	defaultTimeout := p.getSleepTimeout()
-	p.proxyLogger.Infof("<%s> Executing %d sleep request(s) (default timeout: %v)",
-		p.ID, len(p.config.SleepEndpoints), defaultTimeout)
+	p.proxyLogger.Infof("<%s> Executing %d sleep request(s)", p.ID, len(p.config.SleepEndpoints))
 
 	for i, endpoint := range p.config.SleepEndpoints {
-		p.proxyLogger.Debugf("<%s> Sleep step %d/%d: %s %s",
-			p.ID, i+1, len(p.config.SleepEndpoints), endpoint.Method, endpoint.Endpoint)
+		p.proxyLogger.Debugf("<%s> Sleep step %d/%d: %s %s (timeout: %ds)",
+			p.ID, i+1, len(p.config.SleepEndpoints), endpoint.Method, endpoint.Endpoint, endpoint.Timeout)
 
-		if err := p.sendHTTPRequest(endpoint, "sleep", defaultTimeout); err != nil {
+		if err := p.sendHTTPRequest(endpoint, "sleep"); err != nil {
 			return fmt.Errorf("sleep step %d/%d failed: %v", i+1, len(p.config.SleepEndpoints), err)
 		}
 	}
@@ -586,15 +482,13 @@ func (p *Process) sendWakeRequests() error {
 		return fmt.Errorf("no wake endpoints configured")
 	}
 
-	defaultTimeout := p.getWakeTimeout()
-	p.proxyLogger.Infof("<%s> Executing %d wake request(s) (default timeout: %v)",
-		p.ID, len(p.config.WakeEndpoints), defaultTimeout)
+	p.proxyLogger.Infof("<%s> Executing %d wake request(s)", p.ID, len(p.config.WakeEndpoints))
 
 	for i, endpoint := range p.config.WakeEndpoints {
-		p.proxyLogger.Debugf("<%s> Wake step %d/%d: %s %s",
-			p.ID, i+1, len(p.config.WakeEndpoints), endpoint.Method, endpoint.Endpoint)
+		p.proxyLogger.Debugf("<%s> Wake step %d/%d: %s %s (timeout: %ds)",
+			p.ID, i+1, len(p.config.WakeEndpoints), endpoint.Method, endpoint.Endpoint, endpoint.Timeout)
 
-		if err := p.sendHTTPRequest(endpoint, "wake", defaultTimeout); err != nil {
+		if err := p.sendHTTPRequest(endpoint, "wake"); err != nil {
 			return fmt.Errorf("wake step %d/%d failed: %v", i+1, len(p.config.WakeEndpoints), err)
 		}
 	}
@@ -776,6 +670,73 @@ func (p *Process) stopCommand() {
 
 	cancelUpstream()
 	<-cmdWaitChan
+}
+
+// sendHTTPRequest sends a single HTTP request based on endpoint config
+func (p *Process) sendHTTPRequest(endpoint config.HTTPEndpoint, operationName string) error {
+	if endpoint.Endpoint == "" {
+		return fmt.Errorf("%s endpoint not configured", operationName)
+	}
+
+	// Build full URL from proxy base + endpoint
+	baseURL, err := url.Parse(p.config.Proxy)
+	if err != nil {
+		return fmt.Errorf("failed to parse proxy URL: %v", err)
+	}
+
+	endpointURL, err := url.Parse(endpoint.Endpoint)
+	if err != nil {
+		return fmt.Errorf("failed to parse endpoint: %v", err)
+	}
+
+	fullURL := baseURL.ResolveReference(endpointURL).String()
+
+	// Use timeout from endpoint config (set during config loading)
+	timeout := time.Duration(endpoint.Timeout) * time.Second
+
+	// Create HTTP client with timeout
+	client := &http.Client{
+		Transport: &http.Transport{
+			DialContext: (&net.Dialer{
+				Timeout: 500 * time.Millisecond, // Connection timeout
+			}).DialContext,
+		},
+		Timeout: timeout,
+	}
+
+	// Prepare request body if configured
+	var bodyReader io.Reader
+	if endpoint.Body != "" {
+		bodyReader = strings.NewReader(endpoint.Body)
+	}
+
+	// Create and execute request
+	req, err := http.NewRequest(endpoint.Method, fullURL, bodyReader)
+	if err != nil {
+		return fmt.Errorf("failed to create %s request: %v", operationName, err)
+	}
+
+	if endpoint.Body != "" {
+		req.Header.Set("Content-Type", "application/json")
+	}
+
+	p.proxyLogger.Debugf("<%s> Sending %s request: %s %s", p.ID, operationName, endpoint.Method, fullURL)
+	if endpoint.Body != "" {
+		p.proxyLogger.Debugf("<%s> Request body: %s", p.ID, endpoint.Body)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("%s request failed: %v", operationName, err)
+	}
+	defer resp.Body.Close()
+
+	// got a response but it was not an OK
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("status code: %d", resp.StatusCode)
+	}
+
+	return nil
 }
 
 func (p *Process) checkHealthEndpoint(healthURL string) error {
