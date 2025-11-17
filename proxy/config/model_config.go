@@ -94,13 +94,13 @@ func (m *ModelConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 	// Validate and normalize each endpoint
 	for i := range m.SleepEndpoints {
-		if err := m.validateEndpoint(&m.SleepEndpoints[i], "sleep"); err != nil {
+		if err := m.validateEndpoint(&m.SleepEndpoints[i]); err != nil {
 			return fmt.Errorf("sleepEndpoints[%d]: %v", i, err)
 		}
 	}
 
 	for i := range m.WakeEndpoints {
-		if err := m.validateEndpoint(&m.WakeEndpoints[i], "wake"); err != nil {
+		if err := m.validateEndpoint(&m.WakeEndpoints[i]); err != nil {
 			return fmt.Errorf("wakeEndpoints[%d]: %v", i, err)
 		}
 	}
@@ -108,7 +108,7 @@ func (m *ModelConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
-func (m *ModelConfig) validateEndpoint(ep *HTTPEndpoint, context string) error {
+func (m *ModelConfig) validateEndpoint(ep *HTTPEndpoint) error {
 	// Endpoint path is required
 	if ep.Endpoint == "" {
 		return errors.New("endpoint path is required")

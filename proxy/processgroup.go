@@ -46,7 +46,7 @@ func NewProcessGroup(id string, config config.Config, proxyLogger *LogMonitor, u
 	// Create a Process for each member in the group
 	for _, modelID := range groupConfig.Members {
 		modelConfig, modelID, _ := pg.config.FindConfig(modelID)
-		process := NewProcess(modelID, pg.config.HealthCheckTimeout, pg.config.CmdSleepTimeout, pg.config.CmdWakeTimeout, modelConfig, pg.upstreamLogger, pg.proxyLogger)
+		process := NewProcess(modelID, pg.config.HealthCheckTimeout, modelConfig, pg.upstreamLogger, pg.proxyLogger)
 		pg.processes[modelID] = process
 	}
 

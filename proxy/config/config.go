@@ -110,15 +110,15 @@ type HookOnStartup struct {
 }
 
 type Config struct {
-	HealthCheckTimeout int                    `yaml:"healthCheckTimeout"`
-	CmdSleepTimeout    int                    `yaml:"cmdSleepTimeout"`
-	CmdWakeTimeout     int                    `yaml:"cmdWakeTimeout"`
-	LogRequests        bool                   `yaml:"logRequests"`
-	LogLevel           string                 `yaml:"logLevel"`
-	MetricsMaxInMemory int                    `yaml:"metricsMaxInMemory"`
-	Models             map[string]ModelConfig `yaml:"models"` /* key is model ID */
-	Profiles           map[string][]string    `yaml:"profiles"`
-	Groups             map[string]GroupConfig `yaml:"groups"` /* key is group ID */
+	HealthCheckTimeout  int                    `yaml:"healthCheckTimeout"`
+	SleepRequestTimeout int                    `yaml:"sleepRequestTimeout"`
+	WakeRequestTimeout  int                    `yaml:"wakeRequestTimeout"`
+	LogRequests         bool                   `yaml:"logRequests"`
+	LogLevel            string                 `yaml:"logLevel"`
+	MetricsMaxInMemory  int                    `yaml:"metricsMaxInMemory"`
+	Models              map[string]ModelConfig `yaml:"models"` /* key is model ID */
+	Profiles            map[string][]string    `yaml:"profiles"`
+	Groups              map[string]GroupConfig `yaml:"groups"` /* key is group ID */
 
 	// for key/value replacements in model's cmd, cmdStop, proxy, checkEndPoint
 	Macros MacroList `yaml:"macros"`
@@ -174,12 +174,12 @@ func LoadConfigFromReader(r io.Reader) (Config, error) {
 
 	// default configuration values
 	config := Config{
-		HealthCheckTimeout: 120,
-		CmdSleepTimeout:    60,
-		CmdWakeTimeout:     60,
-		StartPort:          5800,
-		LogLevel:           "info",
-		MetricsMaxInMemory: 1000,
+		HealthCheckTimeout:  120,
+		SleepRequestTimeout: 10,
+		WakeRequestTimeout:  10,
+		StartPort:           5800,
+		LogLevel:            "info",
+		MetricsMaxInMemory:  1000,
 	}
 	err = yaml.Unmarshal(data, &config)
 	if err != nil {
@@ -413,6 +413,19 @@ func LoadConfigFromReader(r io.Reader) (Config, error) {
 		if modelConfig.SendLoadingState == nil {
 			v := config.SendLoadingState // copy it
 			modelConfig.SendLoadingState = &v
+		}
+
+		// Set default timeouts on sleep/wake endpoints if not already configured
+		// Use global config timeout values as defaults
+		for i := range modelConfig.SleepEndpoints {
+			if modelConfig.SleepEndpoints[i].Timeout == 0 {
+				modelConfig.SleepEndpoints[i].Timeout = config.SleepRequestTimeout
+			}
+		}
+		for i := range modelConfig.WakeEndpoints {
+			if modelConfig.WakeEndpoints[i].Timeout == 0 {
+				modelConfig.WakeEndpoints[i].Timeout = config.WakeRequestTimeout
+			}
 		}
 
 		config.Models[modelId] = modelConfig
