@@ -547,15 +547,9 @@ func (p *Process) Sleep() {
 	// waitSleeping.Add(1) is now called atomically in swapState()
 	defer p.waitSleeping.Done()
 
-	// Execute cmdSleep
 	sleepStartTime := time.Now()
-	if err := p.executeSleepCommand(); err != nil {
-		p.proxyLogger.Errorf("<%s> cmdSleep failed, falling back to Stop(): %v", p.ID, err)
-		// Transition to stopping and call Stop
-		if _, swapErr := p.swapState(StateSleepPending, StateStopping); swapErr != nil {
-			p.proxyLogger.Errorf("<%s> failed to transition from sleep pending to stopping: %v", p.ID, swapErr)
-			return
-		}
+	if err := p.sendSleepRequests(); err != nil {
+		p.proxyLogger.Errorf("<%s> sendSleepRequests failed, falling back to StopImmediately(): %v", p.ID, err)
 		p.StopImmediately()
 		return
 	}
@@ -569,23 +563,6 @@ func (p *Process) Sleep() {
 	}
 
 	p.proxyLogger.Infof("<%s> Model sleep completed in %v", p.ID, time.Since(sleepStartTime))
-}
-
-// executeSleepCommand executes sleep operation via HTTP endpoints
-func (p *Process) executeSleepCommand() error {
-	if p.cmd == nil || p.cmd.Process == nil {
-		return fmt.Errorf("process is nil, cannot execute sleep")
-	}
-
-	if len(p.config.SleepEndpoints) == 0 {
-		return fmt.Errorf("no sleep endpoints configured")
-	}
-
-	if err := p.sendSleepRequests(); err != nil {
-		return fmt.Errorf("HTTP sleep requests failed: %v", err)
-	}
-
-	return nil
 }
 
 // wake transitions the process from asleep to ready by executing cmdWake.
@@ -613,10 +590,8 @@ func (p *Process) wake() error {
 	defer p.waitWaking.Done()
 
 	wakeStartTime := time.Now()
-
-	// Execute cmdWake
-	if err := p.cmdWakeUpstreamProcess(); err != nil {
-		p.proxyLogger.Errorf("<%s> cmdWake failed: %v", p.ID, err)
+	if err := p.sendWakeRequests(); err != nil {
+		p.proxyLogger.Errorf("<%s> sendWakeRequests failed, falling back to StopImmediately(): %v", p.ID, err)
 		p.StopImmediately()
 		return fmt.Errorf("wake command failed: %v", err)
 	}
@@ -630,25 +605,6 @@ func (p *Process) wake() error {
 	}
 
 	p.proxyLogger.Infof("<%s> Model wake completed in %v", p.ID, time.Since(wakeStartTime))
-	return nil
-}
-
-// cmdWakeUpstreamProcess wakes the upstream process via HTTP endpoints
-func (p *Process) cmdWakeUpstreamProcess() error {
-	p.processLogger.Debugf("<%s> cmdWakeUpstreamProcess() initiating wake", p.ID)
-
-	if p.cmd == nil || p.cmd.Process == nil {
-		return fmt.Errorf("process is nil, cannot execute wake")
-	}
-
-	if len(p.config.WakeEndpoints) == 0 {
-		return fmt.Errorf("no wake endpoints configured")
-	}
-
-	if err := p.sendWakeRequests(); err != nil {
-		return fmt.Errorf("HTTP wake requests failed: %v", err)
-	}
-
 	return nil
 }
 
