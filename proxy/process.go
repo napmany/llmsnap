@@ -242,17 +242,28 @@ func (p *Process) forceState(newState ProcessState) {
 }
 
 func (p *Process) makeReady() error {
-	// If process is sleeping or sleep pending, wake it instead of starting
 	currentState := p.CurrentState()
+	// If process is sleeping or sleep pending, wake it instead of starting
 	if currentState == StateSleepPending || currentState == StateAsleep {
 		p.proxyLogger.Debugf("<%s> Process is asleep or sleep pending, waking instead of starting", p.ID)
-		if err := p.wake(); err != nil {
-			return p.start()
+		err := p.wake()
+		if err == nil {
+			return nil
+		} else {
+			p.proxyLogger.Debugf("<%s> Process wake() failed, fall back to process start()", p.ID)
 		}
-	} else {
-		return p.start()
 	}
-	return nil
+
+	return p.start()
+}
+
+// MakeIdle transitions the process to an idle state, using sleep mode if configured, otherwise stopping.
+func (p *Process) MakeIdle() {
+	if p.isSleepEnabled() {
+		p.Sleep()
+	} else {
+		p.Stop()
+	}
 }
 
 // start starts the upstream command, checks the health endpoint, and sets the state to Ready
@@ -373,13 +384,11 @@ func (p *Process) start() error {
 		}
 	}
 
-	// Start UnloadAfter monitoring
-	p.startUnloadMonitoring()
-
 	if curState, err := p.swapState(StateStarting, StateReady); err != nil {
 		return fmt.Errorf("failed to set Process state to ready: current state: %v, error: %v", curState, err)
 	} else {
 		p.failedStartCount = 0
+		p.startUnloadMonitoring()
 		return nil
 	}
 }
@@ -393,7 +402,11 @@ func (p *Process) startUnloadMonitoring() {
 			maxDuration := time.Duration(p.config.UnloadAfter) * time.Second
 
 			for range time.Tick(time.Second) {
-				if p.CurrentState() != StateReady {
+				curState := p.CurrentState()
+				if curState != StateReady &&
+					curState != StateSleepPending &&
+					curState != StateAsleep &&
+					curState != StateWaking {
 					return
 				}
 
@@ -426,7 +439,6 @@ func (p *Process) Stop() {
 
 // StopImmediately will transition the process to the stopping state and stop the process with a SIGTERM.
 // If the process does not stop within the specified timeout, it will be forcefully stopped with a SIGKILL.
-// TODO: validate transition and transit within one lock
 func (p *Process) StopImmediately() {
 	initState := p.CurrentState()
 	if !isValidTransition(initState, StateStopping) {
@@ -565,7 +577,7 @@ func (p *Process) Sleep() {
 	p.proxyLogger.Infof("<%s> Model sleep completed in %v", p.ID, time.Since(sleepStartTime))
 }
 
-// wake transitions the process from asleep to ready by executing cmdWake.
+// wake transitions the process from asleep to ready.
 func (p *Process) wake() error {
 	if curState, err := p.swapState(StateAsleep, StateWaking); err != nil {
 		if err == ErrExpectedStateMismatch {
@@ -596,10 +608,6 @@ func (p *Process) wake() error {
 		return fmt.Errorf("wake command failed: %v", err)
 	}
 
-	// Start UnloadAfter monitoring (same as start() to ensure consistent behavior)
-	p.startUnloadMonitoring()
-
-	// Transition to ready state
 	if curState, err := p.swapState(StateWaking, StateReady); err != nil {
 		return fmt.Errorf("failed to transition to ready after wake: current state: %v, error: %v", curState, err)
 	}
