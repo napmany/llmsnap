@@ -1,7 +1,7 @@
 import { createContext, useState, useContext, useEffect, useCallback, useMemo, type ReactNode } from "react";
 import type { ConnectionState } from "../lib/types";
 
-type ModelStatus = "ready" | "starting" | "stopping" | "stopped" | "shutdown" | "unknown";
+type ModelStatus = "ready" | "starting" | "stopping" | "stopped" | "shutdown" | "sleepPending" | "asleep" | "waking" | "unknown";
 const LOG_LENGTH_LIMIT = 1024 * 100; /* 100KB of log data */
 
 export interface Model {
@@ -10,6 +10,7 @@ export interface Model {
   name: string;
   description: string;
   unlisted: boolean;
+  sleepEnabled: boolean;
 }
 
 interface APIProviderType {
@@ -18,6 +19,7 @@ interface APIProviderType {
   unloadAllModels: () => Promise<void>;
   unloadSingleModel: (model: string) => Promise<void>;
   loadModel: (model: string) => Promise<void>;
+  sleepModel: (model: string) => Promise<void>;
   enableAPIEvents: (enabled: boolean) => void;
   proxyLogs: string;
   upstreamLogs: string;
@@ -218,6 +220,20 @@ export function APIProvider({ children, autoStartAPIEvents = true }: APIProvider
     }
   }, []);
 
+  const sleepModel = useCallback(async (model: string) => {
+    try {
+      const response = await fetch(`/api/models/sleep/${model}`, {
+        method: "POST",
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to sleep model: ${response.status}`);
+      }
+    } catch (error) {
+      console.error("Failed to sleep model:", error);
+      throw error;
+    }
+  }, []);
+
   const value = useMemo(
     () => ({
       models,
@@ -225,13 +241,14 @@ export function APIProvider({ children, autoStartAPIEvents = true }: APIProvider
       unloadAllModels,
       unloadSingleModel,
       loadModel,
+      sleepModel,
       enableAPIEvents,
       proxyLogs,
       upstreamLogs,
       metrics,
       connectionStatus,
     }),
-    [models, listModels, unloadAllModels, loadModel, enableAPIEvents, proxyLogs, upstreamLogs, metrics]
+    [models, listModels, unloadAllModels, unloadSingleModel, loadModel, sleepModel, enableAPIEvents, proxyLogs, upstreamLogs, metrics]
   );
 
   return <APIContext.Provider value={value}>{children}</APIContext.Provider>;

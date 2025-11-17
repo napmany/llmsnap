@@ -37,7 +37,7 @@ export default function ModelsPage() {
 }
 
 function ModelsPanel() {
-  const { models, loadModel, unloadAllModels, unloadSingleModel } = useAPI();
+  const { models, loadModel, unloadAllModels, unloadSingleModel, sleepModel } = useAPI();
   const { isNarrow } = useTheme();
   const [isUnloading, setIsUnloading] = useState(false);
   const [showUnlisted, setShowUnlisted] = usePersistentState("showUnlisted", true);
@@ -169,13 +169,24 @@ function ModelsPanel() {
                     <button className="btn btn--sm" onClick={() => loadModel(model.id)}>
                       Load
                     </button>
+                  ) : model.state === "asleep" ? (
+                    <button className="btn btn--sm" onClick={() => loadModel(model.id)}>
+                      Wake
+                    </button>
+                  ) : model.state === "ready" ? (
+                    <div className="flex gap-1">
+                      {model.sleepEnabled && (
+                        <button className="btn btn--sm" onClick={() => sleepModel(model.id)}>
+                          Sleep
+                        </button>
+                      )}
+                      <button className="btn btn--sm" onClick={() => unloadSingleModel(model.id)}>
+                        Unload
+                      </button>
+                    </div>
                   ) : (
-                    <button
-                      className="btn btn--sm"
-                      onClick={() => unloadSingleModel(model.id)}
-                      disabled={model.state !== "ready"}
-                    >
-                      Unload
+                    <button className="btn btn--sm" disabled>
+                      {model.state}
                     </button>
                   )}
                 </td>

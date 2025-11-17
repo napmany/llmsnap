@@ -13,11 +13,12 @@ import (
 )
 
 type Model struct {
-	Id          string `json:"id"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	State       string `json:"state"`
-	Unlisted    bool   `json:"unlisted"`
+	Id           string `json:"id"`
+	Name         string `json:"name"`
+	Description  string `json:"description"`
+	State        string `json:"state"`
+	Unlisted     bool   `json:"unlisted"`
+	SleepEnabled bool   `json:"sleepEnabled"`
 }
 
 func addApiHandlers(pm *ProxyManager) {
@@ -26,6 +27,7 @@ func addApiHandlers(pm *ProxyManager) {
 	{
 		apiGroup.POST("/models/unload", pm.apiUnloadAllModels)
 		apiGroup.POST("/models/unload/*model", pm.apiUnloadSingleModelHandler)
+		apiGroup.POST("/models/sleep/*model", pm.apiSleepSingleModelHandler)
 		apiGroup.GET("/events", pm.apiSendEvents)
 		apiGroup.GET("/metrics", pm.apiGetMetrics)
 	}
@@ -51,6 +53,7 @@ func (pm *ProxyManager) getModelStatus() []Model {
 		// Get process state
 		processGroup := pm.findGroupByModelName(modelID)
 		state := "unknown"
+		sleepEnabled := false
 		if processGroup != nil {
 			process := processGroup.processes[modelID]
 			if process != nil {
@@ -66,18 +69,26 @@ func (pm *ProxyManager) getModelStatus() []Model {
 					stateStr = "shutdown"
 				case StateStopped:
 					stateStr = "stopped"
+				case StateSleepPending:
+					stateStr = "sleepPending"
+				case StateAsleep:
+					stateStr = "asleep"
+				case StateWaking:
+					stateStr = "waking"
 				default:
 					stateStr = "unknown"
 				}
 				state = stateStr
+				sleepEnabled = process.isSleepEnabled()
 			}
 		}
 		models = append(models, Model{
-			Id:          modelID,
-			Name:        pm.config.Models[modelID].Name,
-			Description: pm.config.Models[modelID].Description,
-			State:       state,
-			Unlisted:    pm.config.Models[modelID].Unlisted,
+			Id:           modelID,
+			Name:         pm.config.Models[modelID].Name,
+			Description:  pm.config.Models[modelID].Description,
+			State:        state,
+			Unlisted:     pm.config.Models[modelID].Unlisted,
+			SleepEnabled: sleepEnabled,
 		})
 	}
 
@@ -226,4 +237,33 @@ func (pm *ProxyManager) apiUnloadSingleModelHandler(c *gin.Context) {
 	} else {
 		c.String(http.StatusOK, "OK")
 	}
+}
+
+func (pm *ProxyManager) apiSleepSingleModelHandler(c *gin.Context) {
+	requestedModel := strings.TrimPrefix(c.Param("model"), "/")
+	realModelName, found := pm.config.RealModelName(requestedModel)
+	if !found {
+		pm.sendErrorResponse(c, http.StatusNotFound, "Model not found")
+		return
+	}
+
+	processGroup := pm.findGroupByModelName(realModelName)
+	if processGroup == nil {
+		pm.sendErrorResponse(c, http.StatusInternalServerError, fmt.Sprintf("process group not found for model %s", requestedModel))
+		return
+	}
+
+	process := processGroup.processes[realModelName]
+	if process == nil {
+		pm.sendErrorResponse(c, http.StatusInternalServerError, fmt.Sprintf("process not found for model %s", requestedModel))
+		return
+	}
+
+	if !process.isSleepEnabled() {
+		pm.sendErrorResponse(c, http.StatusBadRequest, "Model does not support sleep mode")
+		return
+	}
+
+	process.Sleep()
+	c.String(http.StatusOK, "OK")
 }
