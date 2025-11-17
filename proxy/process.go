@@ -725,31 +725,6 @@ func (p *Process) wake() error {
 		return fmt.Errorf("wake command failed: %v", err)
 	}
 
-	checkEndpoint := strings.TrimSpace(p.config.CheckEndpoint)
-	if checkEndpoint != "none" {
-		proxyTo := p.config.Proxy
-		healthURL, err := url.JoinPath(proxyTo, checkEndpoint)
-		if err != nil {
-			return fmt.Errorf("failed to create health check URL proxy=%s and checkEndpoint=%s", proxyTo, checkEndpoint)
-		}
-
-		currentState := p.CurrentState()
-		if currentState != StateWaking {
-			if currentState == StateStopped {
-				return fmt.Errorf("upstream command exited prematurely but successfully")
-			}
-			return errors.New("health check interrupted due to shutdown")
-		}
-
-		if err := p.checkHealthEndpoint(healthURL); err == nil {
-			p.proxyLogger.Infof("<%s> Health check passed on %s", p.ID, healthURL)
-		} else {
-			p.proxyLogger.Errorf("<%s> Health check timed out after wake", p.ID)
-			p.StopImmediately()
-			return err
-		}
-	}
-
 	// Start UnloadAfter monitoring (same as start() to ensure consistent behavior)
 	p.startUnloadMonitoring()
 
