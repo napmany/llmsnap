@@ -257,6 +257,15 @@ func (p *Process) makeReady() error {
 	return p.start()
 }
 
+// MakeIdle transitions the process to an idle state, using sleep mode if configured, otherwise stopping.
+func (p *Process) MakeIdle() {
+	if p.isSleepEnabled() {
+		p.Sleep()
+	} else {
+		p.Stop()
+	}
+}
+
 // start starts the upstream command, checks the health endpoint, and sets the state to Ready
 // it is a private method because starting is automatic but stopping can be called
 // at any time.
