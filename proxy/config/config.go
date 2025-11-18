@@ -115,7 +115,7 @@ type Config struct {
 	WakeRequestTimeout  int                    `yaml:"wakeRequestTimeout"`
 	LogRequests         bool                   `yaml:"logRequests"`
 	LogLevel            string                 `yaml:"logLevel"`
-	LogTimeFormat      string                  `yaml:"logTimeFormat"`
+	LogTimeFormat       string                 `yaml:"logTimeFormat"`
 	MetricsMaxInMemory  int                    `yaml:"metricsMaxInMemory"`
 	Models              map[string]ModelConfig `yaml:"models"` /* key is model ID */
 	Profiles            map[string][]string    `yaml:"profiles"`
@@ -369,29 +369,11 @@ func LoadConfigFromReader(r io.Reader) (Config, error) {
 		}
 
 		// Check sleep/wake endpoint arrays for unknown macros
-		for i, endpoint := range modelConfig.SleepEndpoints {
-			for _, fieldValue := range []string{endpoint.Endpoint, endpoint.Body} {
-				matches := macroPatternRegex.FindAllStringSubmatch(fieldValue, -1)
-				for _, match := range matches {
-					macroName := match[1]
-					if macroName == "PORT" || macroName == "MODEL_ID" {
-						return Config{}, fmt.Errorf("macro '${%s}' should have been substituted in %s.sleepEndpoints[%d]", macroName, modelId, i)
-					}
-					return Config{}, fmt.Errorf("unknown macro '${%s}' found in %s.sleepEndpoints[%d]", macroName, modelId, i)
-				}
-			}
+		if err := validateEndpointMacros(modelConfig.SleepEndpoints, modelId, "sleepEndpoints"); err != nil {
+			return Config{}, err
 		}
-		for i, endpoint := range modelConfig.WakeEndpoints {
-			for _, fieldValue := range []string{endpoint.Endpoint, endpoint.Body} {
-				matches := macroPatternRegex.FindAllStringSubmatch(fieldValue, -1)
-				for _, match := range matches {
-					macroName := match[1]
-					if macroName == "PORT" || macroName == "MODEL_ID" {
-						return Config{}, fmt.Errorf("macro '${%s}' should have been substituted in %s.wakeEndpoints[%d]", macroName, modelId, i)
-					}
-					return Config{}, fmt.Errorf("unknown macro '${%s}' found in %s.wakeEndpoints[%d]", macroName, modelId, i)
-				}
-			}
+		if err := validateEndpointMacros(modelConfig.WakeEndpoints, modelId, "wakeEndpoints"); err != nil {
+			return Config{}, err
 		}
 
 		// Check for unknown macros in metadata
@@ -630,6 +612,23 @@ func validateMetadataForUnknownMacros(value any, modelId string) error {
 		// Scalar types don't contain macros
 		return nil
 	}
+}
+
+// validateEndpointMacros checks for unknown macros in a list of HTTPEndpoints
+func validateEndpointMacros(endpoints []HTTPEndpoint, modelId, endpointType string) error {
+	for i, endpoint := range endpoints {
+		for _, fieldValue := range []string{endpoint.Endpoint, endpoint.Body} {
+			matches := macroPatternRegex.FindAllStringSubmatch(fieldValue, -1)
+			for _, match := range matches {
+				macroName := match[1]
+				if macroName == "PORT" || macroName == "MODEL_ID" {
+					return fmt.Errorf("macro '${%s}' should have been substituted in %s.%s[%d]", macroName, modelId, endpointType, i)
+				}
+				return fmt.Errorf("unknown macro '${%s}' found in %s.%s[%d]", macroName, modelId, endpointType, i)
+			}
+		}
+	}
+	return nil
 }
 
 // substituteMacroInValue recursively substitutes a single macro in a value structure
