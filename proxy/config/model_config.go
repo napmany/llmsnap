@@ -27,7 +27,7 @@ type ModelConfig struct {
 	Unlisted      bool     `yaml:"unlisted"`
 	UseModelName  string   `yaml:"useModelName"`
 
-	// Array-based sleep/wake configuration (required for sleep/wake)
+	// Array-based sleep/wake configuration
 	SleepEndpoints []HTTPEndpoint `yaml:"sleepEndpoints"`
 	WakeEndpoints  []HTTPEndpoint `yaml:"wakeEndpoints"`
 

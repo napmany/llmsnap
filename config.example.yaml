@@ -21,19 +21,17 @@
 # - minimum value is 15 seconds, anything less will be set to this value
 healthCheckTimeout: 500
 
-# cmdSleepTimeout: number of seconds to wait for sleep HTTP request to complete
-# - optional, default: 60
-# - applies globally to all models unless overridden per-model with sleepTimeout
+# sleepRequestTimeout: number of seconds to wait for each sleep HTTP request to complete
+# - optional, default: 10
+# - applies globally to all sleep endpoints unless overridden per-endpoint with timeout field
 # - used when putting a model to sleep during model swapping
-# - increase for large models that take longer to sleep
-cmdSleepTimeout: 60
+sleepRequestTimeout: 20
 
-# cmdWakeTimeout: number of seconds to wait for wake HTTP request to complete
-# - optional, default: 60
-# - applies globally to all models unless overridden per-model with wakeTimeout
+# wakeRequestTimeout: number of seconds to wait for each wake HTTP request to complete
+# - optional, default: 10
+# - applies globally to all wake endpoints unless overridden per-endpoint with timeout field
 # - used when waking a model from sleep
-# - increase for large models that take longer to wake
-cmdWakeTimeout: 60
+wakeRequestTimeout: 20
 
 # logLevel: sets the logging value
 # - optional, default: info
@@ -257,74 +255,83 @@ models:
     # - processes have 5 seconds to shutdown until forceful termination is attempted
     cmdStop: docker stop ${MODEL_ID}
 
-  # vLLM Sleep Mode Example:
+  # vLLM Sleep Mode Example - Level 1:
   # vLLM supports sleep/wake functionality for fast model switching
   # See: https://docs.vllm.ai/en/stable/features/sleep_mode.html
-  "vllm-sleep-example":
+  # Level 1: offload weights to CPU RAM (faster wake, higher RAM usage, single-step wake)
+  "vllm-sleep-level1":
     cmd: |
-      docker run --name ${MODEL_ID} --runtime=nvidia --rm
-      -p ${PORT}:8000
-      -v /models:/models
-      vllm/vllm-openai:latest
-      --model /models/my-model
+      uv run python -m vllm.entrypoints.openai.api_server
+      --model /path/to/models/my-model
       --served-model-name ${MODEL_ID}
+      --port ${PORT}
+      --enable-sleep-mode
     env:
       # Required to enable sleep mode in vLLM
       - "VLLM_SERVER_DEV_MODE=1"
 
-    # sleepEndpoint: HTTP endpoint to call for putting the model to sleep
-    # - optional, default: ""
-    # - if defined along with wakeEndpoint, used instead of cmdStop during model swapping
+    # sleepEndpoints: array of HTTP endpoints to call for putting the model to sleep
+    # - optional, default: []
+    # - if defined along with wakeEndpoints, used instead of cmdStop during model swapping
     # - HTTP requests are sent to proxy base URL + endpoint
+    # - endpoints are called sequentially in array order
     # - supports macro substitution: ${PORT}, ${MODEL_ID}
-    # - can include query parameters: /sleep?level=1
+    # - each endpoint can include query parameters: /sleep?level=1
     # - vLLM sleep levels:
     #   - level 1: offload weights to CPU RAM (faster wake, higher RAM usage)
     #   - level 2: discard weights entirely (slower wake, minimal RAM usage)
-    sleepEndpoint: /sleep
+    sleepEndpoints:
+      - endpoint: /sleep?level=1
+        method: POST
+        # body is optional
+        # timeout is optional - overrides global sleepRequestTimeout for this specific endpoint
 
-    # sleepMethod: HTTP method for sleep request
-    # - optional, default: POST
-    # - valid values: GET, POST, PUT, PATCH
-    sleepMethod: POST
-
-    # sleepBody: JSON body to send with sleep request
-    # - optional, default: ""
-    # - alternative to query parameters in sleepEndpoint
-    # - supports macro substitution
-    # - example: '{"level": 1}' or use query params: sleepEndpoint: /sleep?level=1
-    sleepBody: '{"level": 1}'
-
-    # wakeEndpoint: HTTP endpoint to call for waking the model
-    # - required if sleepEndpoint is defined
+    # wakeEndpoints: array of HTTP endpoints to call for waking the model
+    # - required if sleepEndpoints is defined
     # - used when loading a sleeping model
     # - HTTP requests are sent to proxy base URL + endpoint
-    wakeEndpoint: /wake_up
+    # - endpoints are called sequentially in array order
+    # - level 1 sleep requires only single wake step
+    wakeEndpoints:
+      - endpoint: /wake_up
+        method: POST
+        # timeout is optional - overrides global wakeRequestTimeout for this specific endpoint
 
-    # wakeMethod: HTTP method for wake request
-    # - optional, default: POST
-    # - valid values: GET, POST, PUT, PATCH
-    wakeMethod: POST
+  # vLLM Sleep Mode Example - Level 2:
+  # Level 2: discard weights entirely (slower wake, minimal RAM usage, multi-step wake)
+  # Requires a 3-step wake sequence to fully restore the model
+  "vllm-sleep-level2":
+    cmd: |
+      uv run python -m vllm.entrypoints.openai.api_server
+      --model /path/to/models/my-large-model
+      --served-model-name ${MODEL_ID}
+      --port ${PORT}
+      --enable-sleep-mode
+    env:
+      # Required to enable sleep mode in vLLM
+      - "VLLM_SERVER_DEV_MODE=1"
 
-    # wakeBody: JSON body to send with wake request
-    # - optional, default: ""
-    # - supports macro substitution
-    # wakeBody: '{}'
+    # Level 2 sleep endpoint - discards weights for minimal RAM usage
+    sleepEndpoints:
+      - endpoint: /sleep?level=2
+        method: POST
+        # Optional: override global sleepRequestTimeout
+        timeout: 15
 
-    # sleepTimeout: override global timeout for this specific model's sleep operation
-    # - optional, default: uses global cmdSleepTimeout (60s)
-    # - useful for large models that need more time to sleep
-    # - vLLM sleep typically completes in 1-20 seconds depending on model size
-    sleepTimeout: 120
-
-    # wakeTimeout: override global timeout for this specific model's wake operation
-    # - optional, default: uses global cmdWakeTimeout (60s)
-    # - useful for large models that need more time to wake
-    # - vLLM wake typically completes in 0.1-6 seconds (level 1) or 0.8-2.6s (level 2)
-    wakeTimeout: 90
-
-    # cmdStop is still available for explicit shutdown requests
-    cmdStop: docker stop ${MODEL_ID}
+    # Level 2 wake requires multi-step sequence to reload weights and reset cache
+    wakeEndpoints:
+      # Step 1: Wake the model
+      - endpoint: /wake_up
+        method: POST
+      # Step 2: Reload weights
+      - endpoint: /collective_rpc
+        method: POST
+        body: '{"method": "reload_weights"}'
+        # Optional: override timeout for this specific endpoint
+        timeout: 12
+      # Step 3: Reset the prefix cache
+      - endpoint: /reset_prefix_cache
+        method: POST
 
 # groups: a dictionary of group settings
 # - optional, default: empty dictionary
