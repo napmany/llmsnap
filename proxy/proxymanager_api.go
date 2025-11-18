@@ -30,6 +30,7 @@ func addApiHandlers(pm *ProxyManager) {
 		apiGroup.POST("/models/sleep/*model", pm.apiSleepSingleModelHandler)
 		apiGroup.GET("/events", pm.apiSendEvents)
 		apiGroup.GET("/metrics", pm.apiGetMetrics)
+		apiGroup.GET("/version", pm.apiGetVersion)
 	}
 }
 
@@ -237,6 +238,14 @@ func (pm *ProxyManager) apiUnloadSingleModelHandler(c *gin.Context) {
 	} else {
 		c.String(http.StatusOK, "OK")
 	}
+}
+
+func (pm *ProxyManager) apiGetVersion(c *gin.Context) {
+	c.JSON(http.StatusOK, map[string]string{
+		"version":    pm.version,
+		"commit":     pm.commit,
+		"build_date": pm.buildDate,
+	})
 }
 
 func (pm *ProxyManager) apiSleepSingleModelHandler(c *gin.Context) {

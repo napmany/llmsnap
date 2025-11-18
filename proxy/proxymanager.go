@@ -45,6 +45,11 @@ type ProxyManager struct {
 	// shutdown signaling
 	shutdownCtx    context.Context
 	shutdownCancel context.CancelFunc
+
+	// version info
+	buildDate string
+	commit    string
+	version   string
 }
 
 func New(config config.Config) *ProxyManager {
@@ -75,6 +80,30 @@ func New(config config.Config) *ProxyManager {
 		upstreamLogger.SetLogLevel(LevelInfo)
 	}
 
+	// see: https://go.dev/src/time/format.go
+	timeFormats := map[string]string{
+		"ansic":       time.ANSIC,
+		"unixdate":    time.UnixDate,
+		"rubydate":    time.RubyDate,
+		"rfc822":      time.RFC822,
+		"rfc822z":     time.RFC822Z,
+		"rfc850":      time.RFC850,
+		"rfc1123":     time.RFC1123,
+		"rfc1123z":    time.RFC1123Z,
+		"rfc3339":     time.RFC3339,
+		"rfc3339nano": time.RFC3339Nano,
+		"kitchen":     time.Kitchen,
+		"stamp":       time.Stamp,
+		"stampmilli":  time.StampMilli,
+		"stampmicro":  time.StampMicro,
+		"stampnano":   time.StampNano,
+	}
+
+	if timeFormat, ok := timeFormats[strings.ToLower(strings.TrimSpace(config.LogTimeFormat))]; ok {
+		proxyLogger.SetLogTimeFormat(timeFormat)
+		upstreamLogger.SetLogTimeFormat(timeFormat)
+	}
+
 	shutdownCtx, shutdownCancel := context.WithCancel(context.Background())
 
 	var maxMetrics int
@@ -98,6 +127,10 @@ func New(config config.Config) *ProxyManager {
 
 		shutdownCtx:    shutdownCtx,
 		shutdownCancel: shutdownCancel,
+
+		buildDate: "unknown",
+		commit:    "abcd1234",
+		version:   "0",
 	}
 
 	// create the process groups
@@ -745,4 +778,12 @@ func (pm *ProxyManager) findGroupByModelName(modelName string) *ProcessGroup {
 		}
 	}
 	return nil
+}
+
+func (pm *ProxyManager) SetVersion(buildDate string, commit string, version string) {
+	pm.Lock()
+	defer pm.Unlock()
+	pm.buildDate = buildDate
+	pm.commit = commit
+	pm.version = version
 }
