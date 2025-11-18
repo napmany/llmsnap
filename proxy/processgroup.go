@@ -112,6 +112,26 @@ func (pg *ProcessGroup) StopProcess(modelID string, strategy StopStrategy) error
 	return nil
 }
 
+func (pg *ProcessGroup) SleepProcess(modelID string) error {
+	pg.Lock()
+
+	process, exists := pg.processes[modelID]
+	if !exists {
+		pg.Unlock()
+		return fmt.Errorf("process not found for %s", modelID)
+	}
+
+	if !process.isSleepEnabled() {
+		pg.Unlock()
+		return fmt.Errorf("model does not support sleep mode")
+	}
+
+	pg.Unlock()
+
+	process.Sleep()
+	return nil
+}
+
 func (pg *ProcessGroup) StopProcesses(strategy StopStrategy) {
 	pg.Lock()
 	defer pg.Unlock()

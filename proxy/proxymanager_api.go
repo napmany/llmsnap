@@ -253,17 +253,10 @@ func (pm *ProxyManager) apiSleepSingleModelHandler(c *gin.Context) {
 		return
 	}
 
-	process := processGroup.processes[realModelName]
-	if process == nil {
-		pm.sendErrorResponse(c, http.StatusInternalServerError, fmt.Sprintf("process not found for model %s", requestedModel))
+	if err := processGroup.SleepProcess(realModelName); err != nil {
+		pm.sendErrorResponse(c, http.StatusInternalServerError, fmt.Sprintf("error sleeping process: %s", err.Error()))
 		return
+	} else {
+		c.String(http.StatusOK, "OK")
 	}
-
-	if !process.isSleepEnabled() {
-		pm.sendErrorResponse(c, http.StatusBadRequest, "Model does not support sleep mode")
-		return
-	}
-
-	process.Sleep()
-	c.String(http.StatusOK, "OK")
 }
