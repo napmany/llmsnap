@@ -33,9 +33,7 @@ const (
 	// process is shutdown and will not be restarted
 	StateShutdown ProcessState = ProcessState("shutdown")
 
-	// sleep/wake states for models that support sleep mode
-	// StateSleepPending is the transitional state while cmdSleep executes (like StateStarting)
-	// StateAsleep is the final state when the model is fully asleep (like StateReady)
+	// sleep/wake states
 	StateSleepPending ProcessState = ProcessState("sleepPending")
 	StateAsleep       ProcessState = ProcessState("asleep")
 	StateWaking       ProcessState = ProcessState("waking")
@@ -524,7 +522,6 @@ func (p *Process) Sleep() {
 		return
 	}
 
-	// Handle concurrent Sleep() calls and already-asleep state
 	currentState := p.CurrentState()
 
 	// If sleep is already in progress, wait for it to complete
@@ -540,23 +537,20 @@ func (p *Process) Sleep() {
 		}
 	}
 
-	// Can only sleep from Ready state
 	if !isValidTransition(currentState, StateSleepPending) {
 		p.proxyLogger.Warnf("<%s> Cannot sleep from state %s", p.ID, currentState)
 		return
 	}
 
-	// Wait for inflight requests to complete
 	p.proxyLogger.Debugf("<%s> Sleep(): Waiting for inflight requests to complete", p.ID)
 	p.inFlightRequests.Wait()
 
-	// Transition to sleep pending state
 	if curState, err := p.swapState(StateReady, StateSleepPending); err != nil {
 		p.proxyLogger.Warnf("<%s> failed to transition to sleep pending: current state: %v, error: %v", p.ID, curState, err)
 		return
 	}
 
-	// waitSleeping.Add(1) is now called atomically in swapState()
+	// waitSleeping.Add(1) is called atomically in swapState()
 	defer p.waitSleeping.Done()
 
 	sleepStartTime := time.Now()
@@ -566,7 +560,6 @@ func (p *Process) Sleep() {
 		return
 	}
 
-	// Transition to asleep state
 	if curState, err := p.swapState(StateSleepPending, StateAsleep); err != nil {
 		p.proxyLogger.Errorf("<%s> failed to transition to asleep: current state: %v, error: %v", p.ID, curState, err)
 		// If we can't transition to asleep, fall back to stopping

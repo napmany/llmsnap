@@ -390,8 +390,6 @@ func LoadConfigFromReader(r io.Reader) (Config, error) {
 			)
 		}
 
-		// Sleep/wake validation is now handled in ModelConfig.UnmarshalYAML
-
 		// if sendLoadingState is nil, set it to the global config value
 		// see #366
 		if modelConfig.SendLoadingState == nil {
