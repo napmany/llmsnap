@@ -48,6 +48,18 @@
             "default": 120,
             "description": "Number of seconds to wait for a model to be ready to serve requests."
         },
+        "sleepRequestTimeout": {
+            "type": "integer",
+            "minimum": 1,
+            "default": 10,
+            "description": "Number of seconds to wait for each sleep HTTP request to complete. Applies globally to all sleep endpoints unless overridden per-endpoint with timeout field."
+        },
+        "wakeRequestTimeout": {
+            "type": "integer",
+            "minimum": 1,
+            "default": 10,
+            "description": "Number of seconds to wait for each wake HTTP request to complete. Applies globally to all wake endpoints unless overridden per-endpoint with timeout field."
+        },
         "logLevel": {
             "type": "string",
             "enum": [
@@ -214,6 +226,80 @@
                         "type": "boolean",
                         "default": false,
                         "description": "If true the model will not show up in /v1/models responses. It can still be used as normal in API requests."
+                    },
+                    "sleepMode": {
+                        "type": "string",
+                        "enum": ["enable", "disable"],
+                        "default": "disable",
+                        "description": "Explicitly controls sleep/wake behavior. 'enable' activates sleep/wake functionality and requires sleepEndpoints and wakeEndpoints to be defined."
+                    },
+                    "sleepEndpoints": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "required": ["endpoint"],
+                            "properties": {
+                                "endpoint": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "description": "URL path for the sleep endpoint (e.g., /sleep?level=1)."
+                                },
+                                "method": {
+                                    "type": "string",
+                                    "enum": ["GET", "POST", "PUT", "PATCH"],
+                                    "default": "POST",
+                                    "description": "HTTP method to use for the request."
+                                },
+                                "body": {
+                                    "type": "string",
+                                    "default": "",
+                                    "description": "Optional request body (JSON string)."
+                                },
+                                "timeout": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "default": 0,
+                                    "description": "Optional per-endpoint timeout in seconds. 0 uses global sleepRequestTimeout."
+                                }
+                            },
+                            "additionalProperties": false
+                        },
+                        "default": [],
+                        "description": "Array of HTTP endpoints to call for putting the model to sleep. Requires sleepMode to be 'enable'. Endpoints are called sequentially in array order. Used instead of cmdStop during model swapping."
+                    },
+                    "wakeEndpoints": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "required": ["endpoint"],
+                            "properties": {
+                                "endpoint": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "description": "URL path for the wake endpoint (e.g., /wake_up)."
+                                },
+                                "method": {
+                                    "type": "string",
+                                    "enum": ["GET", "POST", "PUT", "PATCH"],
+                                    "default": "POST",
+                                    "description": "HTTP method to use for the request."
+                                },
+                                "body": {
+                                    "type": "string",
+                                    "default": "",
+                                    "description": "Optional request body (JSON string)."
+                                },
+                                "timeout": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "default": 0,
+                                    "description": "Optional per-endpoint timeout in seconds. 0 uses global wakeRequestTimeout."
+                                }
+                            },
+                            "additionalProperties": false
+                        },
+                        "default": [],
+                        "description": "Array of HTTP endpoints to call for waking the model. Requires sleepMode to be 'enable'. Required when sleepMode is 'enable'. Endpoints are called sequentially in array order."
                     }
                 }
             }

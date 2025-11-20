@@ -18,6 +18,7 @@ type Model struct {
 	Description string `json:"description"`
 	State       string `json:"state"`
 	Unlisted    bool   `json:"unlisted"`
+	SleepMode   string `json:"sleepMode"`
 }
 
 func addApiHandlers(pm *ProxyManager) {
@@ -26,6 +27,7 @@ func addApiHandlers(pm *ProxyManager) {
 	{
 		apiGroup.POST("/models/unload", pm.apiUnloadAllModels)
 		apiGroup.POST("/models/unload/*model", pm.apiUnloadSingleModelHandler)
+		apiGroup.POST("/models/sleep/*model", pm.apiSleepSingleModelHandler)
 		apiGroup.GET("/events", pm.apiSendEvents)
 		apiGroup.GET("/metrics", pm.apiGetMetrics)
 		apiGroup.GET("/version", pm.apiGetVersion)
@@ -67,6 +69,12 @@ func (pm *ProxyManager) getModelStatus() []Model {
 					stateStr = "shutdown"
 				case StateStopped:
 					stateStr = "stopped"
+				case StateSleepPending:
+					stateStr = "sleepPending"
+				case StateAsleep:
+					stateStr = "asleep"
+				case StateWaking:
+					stateStr = "waking"
 				default:
 					stateStr = "unknown"
 				}
@@ -79,6 +87,7 @@ func (pm *ProxyManager) getModelStatus() []Model {
 			Description: pm.config.Models[modelID].Description,
 			State:       state,
 			Unlisted:    pm.config.Models[modelID].Unlisted,
+			SleepMode:   string(pm.config.Models[modelID].SleepMode),
 		})
 	}
 
@@ -223,6 +232,28 @@ func (pm *ProxyManager) apiUnloadSingleModelHandler(c *gin.Context) {
 
 	if err := processGroup.StopProcess(realModelName, StopImmediately); err != nil {
 		pm.sendErrorResponse(c, http.StatusInternalServerError, fmt.Sprintf("error stopping process: %s", err.Error()))
+		return
+	} else {
+		c.String(http.StatusOK, "OK")
+	}
+}
+
+func (pm *ProxyManager) apiSleepSingleModelHandler(c *gin.Context) {
+	requestedModel := strings.TrimPrefix(c.Param("model"), "/")
+	realModelName, found := pm.config.RealModelName(requestedModel)
+	if !found {
+		pm.sendErrorResponse(c, http.StatusNotFound, "Model not found")
+		return
+	}
+
+	processGroup := pm.findGroupByModelName(realModelName)
+	if processGroup == nil {
+		pm.sendErrorResponse(c, http.StatusInternalServerError, fmt.Sprintf("process group not found for model %s", requestedModel))
+		return
+	}
+
+	if err := processGroup.SleepProcess(realModelName); err != nil {
+		pm.sendErrorResponse(c, http.StatusInternalServerError, fmt.Sprintf("error sleeping process: %s", err.Error()))
 		return
 	} else {
 		c.String(http.StatusOK, "OK")
