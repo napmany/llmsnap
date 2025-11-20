@@ -227,6 +227,12 @@
                         "default": false,
                         "description": "If true the model will not show up in /v1/models responses. It can still be used as normal in API requests."
                     },
+                    "sleepMode": {
+                        "type": "string",
+                        "enum": ["enable", "disable"],
+                        "default": "disable",
+                        "description": "Explicitly controls sleep/wake behavior. 'enable' activates sleep/wake functionality and requires sleepEndpoints and wakeEndpoints to be defined."
+                    },
                     "sleepEndpoints": {
                         "type": "array",
                         "items": {
@@ -259,7 +265,7 @@
                             "additionalProperties": false
                         },
                         "default": [],
-                        "description": "Array of HTTP endpoints to call for putting the model to sleep. If defined along with wakeEndpoints, used instead of cmdStop during model swapping. Endpoints are called sequentially in array order."
+                        "description": "Array of HTTP endpoints to call for putting the model to sleep. Requires sleepMode to be 'enable'. Endpoints are called sequentially in array order. Used instead of cmdStop during model swapping."
                     },
                     "wakeEndpoints": {
                         "type": "array",
@@ -293,7 +299,7 @@
                             "additionalProperties": false
                         },
                         "default": [],
-                        "description": "Array of HTTP endpoints to call for waking the model. Required if sleepEndpoints is defined. Endpoints are called sequentially in array order."
+                        "description": "Array of HTTP endpoints to call for waking the model. Requires sleepMode to be 'enable'. Required when sleepMode is 'enable'. Endpoints are called sequentially in array order."
                     }
                 }
             }

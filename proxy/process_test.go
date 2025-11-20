@@ -584,6 +584,7 @@ func TestProcess_SleepAndWakeBasic(t *testing.T) {
 
 	// Get base config and modify sleep/wake fields (like TestProcess_StopCmd modifies CmdStop)
 	cfg := getTestSimpleResponderConfig(expectedMessage)
+	cfg.SleepMode = config.SleepModeEnable
 	cfg.SleepEndpoints = []config.HTTPEndpoint{
 		{Endpoint: "/sleep", Method: "POST", Timeout: 5},
 	}
@@ -614,6 +615,7 @@ func TestProcess_MultiStepWakeSequence(t *testing.T) {
 	expectedMessage := "multi_step_wake"
 
 	cfg := getTestSimpleResponderConfig(expectedMessage)
+	cfg.SleepMode = config.SleepModeEnable
 	cfg.SleepEndpoints = []config.HTTPEndpoint{
 		{Endpoint: "/sleep?level=2", Method: "POST", Timeout: 5},
 	}
@@ -647,6 +649,7 @@ func TestProcess_SleepInsteadOfStopWithSwap(t *testing.T) {
 	expectedMessage := "sleep_swap_test"
 
 	cfg := getTestSimpleResponderConfig(expectedMessage)
+	cfg.SleepMode = config.SleepModeEnable
 	cfg.SleepEndpoints = []config.HTTPEndpoint{
 		{Endpoint: "/sleep", Method: "POST", Timeout: 5},
 	}
@@ -678,6 +681,7 @@ func TestProcess_WakeFailureFallsBackToStart(t *testing.T) {
 	expectedMessage := "wake_failure_test"
 
 	cfg := getTestSimpleResponderConfig(expectedMessage)
+	cfg.SleepMode = config.SleepModeEnable
 	cfg.SleepEndpoints = []config.HTTPEndpoint{
 		{Endpoint: "/sleep", Method: "POST", Timeout: 5},
 	}

@@ -10,7 +10,7 @@ export interface Model {
   name: string;
   description: string;
   unlisted: boolean;
-  sleepEnabled: boolean;
+  sleepMode: string;
 }
 
 interface APIProviderType {

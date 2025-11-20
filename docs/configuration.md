@@ -323,6 +323,12 @@ models:
   # See: https://docs.vllm.ai/en/stable/features/sleep_mode.html
   # Level 1: offload weights to CPU RAM (faster wake, higher RAM usage, single-step wake)
   "vllm-sleep-level1":
+    # sleepMode: explicitly controls sleep/wake behavior
+    # - "enable": activates sleep/wake - requires sleepEndpoints and wakeEndpoints
+    # - "disable": disables sleep/wake - uses cmdStop instead
+    # - (empty): default - sleep mode disabled
+    sleepMode: enable
+
     cmd: |
       uv run python -m vllm.entrypoints.openai.api_server
       --model /path/to/models/my-model
@@ -364,6 +370,9 @@ models:
   # Level 2: discard weights entirely (slower wake, minimal RAM usage, multi-step wake)
   # Requires a 3-step wake sequence to fully restore the model
   "vllm-sleep-level2":
+    # Enable sleep/wake functionality
+    sleepMode: enable
+
     cmd: |
       uv run python -m vllm.entrypoints.openai.api_server
       --model /path/to/models/my-large-model

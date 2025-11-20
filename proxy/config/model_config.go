@@ -16,6 +16,14 @@ type HTTPEndpoint struct {
 	Timeout  int    `yaml:"timeout"`  // Optional per-endpoint timeout (seconds)
 }
 
+// SleepMode represents the sleep/wake behavior mode
+type SleepMode string
+
+const (
+	SleepModeEnable  SleepMode = SleepMode("enable")
+	SleepModeDisable SleepMode = SleepMode("disable")
+)
+
 type ModelConfig struct {
 	Cmd           string   `yaml:"cmd"`
 	CmdStop       string   `yaml:"cmdStop"`
@@ -26,6 +34,11 @@ type ModelConfig struct {
 	UnloadAfter   int      `yaml:"ttl"`
 	Unlisted      bool     `yaml:"unlisted"`
 	UseModelName  string   `yaml:"useModelName"`
+
+	// SleepMode explicitly controls sleep/wake behavior
+	// Valid values: SleepModeEnable, SleepModeDisable
+	// Future values may include: "auto", "level1", "level2"
+	SleepMode SleepMode `yaml:"sleepMode"`
 
 	// Array-based sleep/wake configuration
 	SleepEndpoints []HTTPEndpoint `yaml:"sleepEndpoints"`
@@ -68,6 +81,7 @@ func (m *ModelConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		ConcurrencyLimit: 0,
 		Name:             "",
 		Description:      "",
+		SleepMode:        SleepModeDisable,
 	}
 
 	// the default cmdStop to taskkill /f /t /pid ${PID}
@@ -81,15 +95,22 @@ func (m *ModelConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 	*m = ModelConfig(defaults)
 
-	// Validation: if one is set, both must be set
-	hasSleep := len(m.SleepEndpoints) > 0
-	hasWake := len(m.WakeEndpoints) > 0
-
-	if hasSleep && !hasWake {
-		return errors.New("wakeEndpoints required when sleepEndpoints is configured")
+	// Validate sleepMode field
+	switch m.SleepMode {
+	case SleepModeEnable, SleepModeDisable:
+		// Valid values
+	default:
+		return fmt.Errorf("invalid sleepMode value '%s': must be 'enable' or 'disable'", m.SleepMode)
 	}
-	if hasWake && !hasSleep {
-		return errors.New("sleepEndpoints required when wakeEndpoints is configured")
+
+	// Require endpoints when sleepMode is "enable"
+	if m.SleepMode == SleepModeEnable {
+		if len(m.SleepEndpoints) == 0 {
+			return errors.New("sleepEndpoints required when sleepMode is 'enable'")
+		}
+		if len(m.WakeEndpoints) == 0 {
+			return errors.New("wakeEndpoints required when sleepMode is 'enable'")
+		}
 	}
 
 	// Validate and normalize each endpoint

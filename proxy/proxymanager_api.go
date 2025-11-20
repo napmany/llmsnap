@@ -13,12 +13,12 @@ import (
 )
 
 type Model struct {
-	Id           string `json:"id"`
-	Name         string `json:"name"`
-	Description  string `json:"description"`
-	State        string `json:"state"`
-	Unlisted     bool   `json:"unlisted"`
-	SleepEnabled bool   `json:"sleepEnabled"`
+	Id          string `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	State       string `json:"state"`
+	Unlisted    bool   `json:"unlisted"`
+	SleepMode   string `json:"sleepMode"`
 }
 
 func addApiHandlers(pm *ProxyManager) {
@@ -54,7 +54,6 @@ func (pm *ProxyManager) getModelStatus() []Model {
 		// Get process state
 		processGroup := pm.findGroupByModelName(modelID)
 		state := "unknown"
-		sleepEnabled := false
 		if processGroup != nil {
 			process := processGroup.processes[modelID]
 			if process != nil {
@@ -80,16 +79,15 @@ func (pm *ProxyManager) getModelStatus() []Model {
 					stateStr = "unknown"
 				}
 				state = stateStr
-				sleepEnabled = process.isSleepEnabled()
 			}
 		}
 		models = append(models, Model{
-			Id:           modelID,
-			Name:         pm.config.Models[modelID].Name,
-			Description:  pm.config.Models[modelID].Description,
-			State:        state,
-			Unlisted:     pm.config.Models[modelID].Unlisted,
-			SleepEnabled: sleepEnabled,
+			Id:          modelID,
+			Name:        pm.config.Models[modelID].Name,
+			Description: pm.config.Models[modelID].Description,
+			State:       state,
+			Unlisted:    pm.config.Models[modelID].Unlisted,
+			SleepMode:   string(pm.config.Models[modelID].SleepMode),
 		})
 	}
 

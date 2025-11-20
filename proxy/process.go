@@ -504,12 +504,12 @@ func (p *Process) sendWakeRequests() error {
 	return nil
 }
 
-// isSleepEnabled returns true if sleep/wake endpoints are configured
+// isSleepEnabled returns true if sleep mode is explicitly enabled
 func (p *Process) isSleepEnabled() bool {
-	return len(p.config.SleepEndpoints) > 0 && len(p.config.WakeEndpoints) > 0
+	return p.config.SleepMode == config.SleepModeEnable
 }
 
-// Sleep transitions the process to a sleeping state by executing sleep HTTP request if defined.
+// Sleep transitions the process to a sleeping state by executing sleep HTTP requests if defined.
 func (p *Process) Sleep() {
 	if !p.isSleepEnabled() {
 		p.proxyLogger.Errorf("<%s> sleep not configured", p.ID)

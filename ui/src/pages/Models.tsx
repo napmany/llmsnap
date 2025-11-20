@@ -181,7 +181,7 @@ function ModelsPanel() {
                       </>
                     ) : model.state === "ready" ? (
                       <>
-                        {model.sleepEnabled && (
+                        {model.sleepMode === "enable" && (
                           <button className="btn btn--sm btn--action" onClick={() => sleepModel(model.id)}>
                             Sleep
                           </button>
