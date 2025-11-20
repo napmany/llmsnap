@@ -171,6 +171,7 @@ groups:
 				Aliases:          []string{"m1", "model-one"},
 				Env:              []string{"VAR1=value1", "VAR2=value2"},
 				CheckEndpoint:    "/health",
+				SleepMode:        SleepModeDisable,
 				SendLoadingState: &modelLoadingState,
 			},
 			"model2": {
@@ -180,6 +181,7 @@ groups:
 				Aliases:          []string{"m2"},
 				Env:              []string{},
 				CheckEndpoint:    "/",
+				SleepMode:        SleepModeDisable,
 				SendLoadingState: &modelLoadingState,
 			},
 			"model3": {
@@ -189,6 +191,7 @@ groups:
 				Aliases:          []string{"mthree"},
 				Env:              []string{},
 				CheckEndpoint:    "/",
+				SleepMode:        SleepModeDisable,
 				SendLoadingState: &modelLoadingState,
 			},
 			"model4": {
@@ -198,6 +201,7 @@ groups:
 				CheckEndpoint:    "/",
 				Aliases:          []string{},
 				Env:              []string{},
+				SleepMode:        SleepModeDisable,
 				SendLoadingState: &modelLoadingState,
 			},
 		},
