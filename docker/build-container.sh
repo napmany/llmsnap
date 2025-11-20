@@ -20,7 +20,7 @@ if [[ -z "$GITHUB_TOKEN" ]]; then
   exit 1
 fi
 
-# the most recent llama-swap tag
+# the most recent llmsnap tag
 # have to strip out the 'v' due to .tar.gz file naming
 LS_VER=$(curl -s https://api.github.com/repos/napmany/llmsnap/releases/latest | jq -r .tag_name | sed 's/v//')
 
