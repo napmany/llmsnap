@@ -33,7 +33,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./docker/build-container.sh ${{ matrix.platform }} true
 
-  # note make sure mostlygeek/llama-swap has admin rights to the llama-swap package
+  # note make sure napmany/llmsnap has admin rights to the llmsnap package
   # see: https://github.com/actions/delete-package-versions/issues/74
   delete-untagged-containers:
     needs: build-and-push
@@ -41,6 +41,6 @@ jobs:
     steps:
       - uses: actions/delete-package-versions@v5
         with:
-          package-name: 'llama-swap'
+          package-name: 'llmsnap'
           package-type: 'container'
           delete-only-untagged-versions: 'true'

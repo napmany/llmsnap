@@ -20,9 +20,9 @@ if [[ -z "$GITHUB_TOKEN" ]]; then
   exit 1
 fi
 
-# the most recent llama-swap tag
+# the most recent llmsnap tag
 # have to strip out the 'v' due to .tar.gz file naming
-LS_VER=$(curl -s https://api.github.com/repos/mostlygeek/llama-swap/releases/latest | jq -r .tag_name | sed 's/v//')
+LS_VER=$(curl -s https://api.github.com/repos/napmany/llmsnap/releases/latest | jq -r .tag_name | sed 's/v//')
 
 if [ "$ARCH" == "cpu" ]; then
     # cpu only containers just use the server tag
@@ -45,8 +45,8 @@ if [[ -z "$LCPP_TAG" ]]; then
     exit 1
 fi
 
-CONTAINER_TAG="ghcr.io/mostlygeek/llama-swap:v${LS_VER}-${ARCH}-${LCPP_TAG}"
-CONTAINER_LATEST="ghcr.io/mostlygeek/llama-swap:${ARCH}"
+CONTAINER_TAG="ghcr.io/napmany/llmsnap:v${LS_VER}-${ARCH}-${LCPP_TAG}"
+CONTAINER_LATEST="ghcr.io/napmany/llmsnap:${ARCH}"
 echo "Building ${CONTAINER_TAG} $LS_VER"
 docker build -f llama-swap.Containerfile --build-arg BASE_TAG=${BASE_TAG} --build-arg LS_VER=${LS_VER} -t ${CONTAINER_TAG} -t ${CONTAINER_LATEST} .
 if [ "$PUSH_IMAGES" == "true" ]; then
