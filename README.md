@@ -1,5 +1,5 @@
 <!-- TODO: Header image needs redesign with llmsnap branding -->
-![llmsnap header image](header.png)
+![llmsnap header image](header.jpeg)
 ![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/napmany/llmsnap/total)
 ![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/napmany/llmsnap/go-ci.yml)
 ![GitHub Repo stars](https://img.shields.io/github/stars/napmany/llmsnap)
