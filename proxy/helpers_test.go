@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	"github.com/mostlygeek/llama-swap/proxy/config"
+	"github.com/napmany/llmsnap/proxy/config"
 	"gopkg.in/yaml.v3"
 )
 

@@ -1,8 +1,8 @@
 {
     "$schema": "https://json-schema.org/draft-07/schema#",
-    "$id": "llama-swap-config-schema.json",
-    "title": "llama-swap configuration",
-    "description": "Configuration file for llama-swap",
+    "$id": "llmsnap-config-schema.json",
+    "title": "llmsnap configuration",
+    "description": "Configuration file for llmsnap",
     "type": "object",
     "required": [
         "models"

@@ -69,7 +69,7 @@ jobs:
         uses: peter-evans/repository-dispatch@v2
         with:
           token: ${{ secrets.TAP_REPO_PAT }}
-          repository: mostlygeek/homebrew-llama-swap
+          repository: napmany/homebrew-llmsnap
           event-type: new-release
           client-payload: |
             {

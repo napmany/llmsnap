@@ -48,7 +48,7 @@ fi
 CONTAINER_TAG="ghcr.io/napmany/llmsnap:v${LS_VER}-${ARCH}-${LCPP_TAG}"
 CONTAINER_LATEST="ghcr.io/napmany/llmsnap:${ARCH}"
 echo "Building ${CONTAINER_TAG} $LS_VER"
-docker build -f llama-swap.Containerfile --build-arg BASE_TAG=${BASE_TAG} --build-arg LS_VER=${LS_VER} -t ${CONTAINER_TAG} -t ${CONTAINER_LATEST} .
+docker build -f llmsnap.Containerfile --build-arg BASE_TAG=${BASE_TAG} --build-arg LS_VER=${LS_VER} -t ${CONTAINER_TAG} -t ${CONTAINER_LATEST} .
 if [ "$PUSH_IMAGES" == "true" ]; then
   docker push ${CONTAINER_TAG}
   docker push ${CONTAINER_LATEST}

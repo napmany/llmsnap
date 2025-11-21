@@ -1,11 +1,11 @@
-# Restart llama-swap on config change
+# Restart llmsnap on config change
 
-Sometimes editing the configuration file can take a bit of trail and error to get a model configuration tuned just right. The `watch-and-restart.sh` script can be used to watch `config.yaml` for changes and restart `llama-swap` when it detects a change.
+Sometimes editing the configuration file can take a bit of trail and error to get a model configuration tuned just right. The `watch-and-restart.sh` script can be used to watch `config.yaml` for changes and restart `llmsnap` when it detects a change.
 
 ```bash
 #!/bin/bash
 #
-# A simple watch and restart llama-swap when its configuration
+# A simple watch and restart llmsnap when its configuration
 # file changes. Useful for trying out configuration changes
 # without manually restarting the server each time.
 if [ -z "$1" ]; then
@@ -15,9 +15,9 @@ fi
 
 while true; do
     # Start the process again
-    ./llama-swap-linux-amd64 -config $1 -listen :1867 &
+    ./llmsnap-linux-amd64 -config $1 -listen :1867 &
     PID=$!
-    echo "Started llama-swap with PID $PID"
+    echo "Started llmsnap with PID $PID"
 
     # Wait for modifications in the specified directory or file
     inotifywait -e modify "$1"
@@ -38,14 +38,14 @@ done
 
 ```bash
 $ ./watch-and-restart.sh config.yaml
-Started llama-swap with PID 495455
+Started llmsnap with PID 495455
 Setting up watches.
 Watches established.
-llama-swap listening on :1867
+llmsnap listening on :1867
 Sending SIGTERM to 495455
-Shutting down llama-swap
-Started llama-swap with PID 495486
+Shutting down llmsnap
+Started llmsnap with PID 495486
 Setting up watches.
 Watches established.
-llama-swap listening on :1867
+llmsnap listening on :1867
 ```

@@ -8,7 +8,7 @@ export function Header() {
   const { screenWidth, toggleTheme, isDarkMode, appTitle, setAppTitle, isNarrow } = useTheme();
   const handleTitleChange = useCallback(
     (newTitle: string) => {
-      setAppTitle(newTitle.replace(/\n/g, "").trim().substring(0, 64) || "llama-swap");
+      setAppTitle(newTitle.replace(/\n/g, "").trim().substring(0, 64) || "llmsnap");
     },
     [setAppTitle]
   );

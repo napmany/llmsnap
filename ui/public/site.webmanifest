@@ -1,6 +1,6 @@
 {
-  "name": "llama-swap",
-  "short_name": "llama-swap",
+  "name": "llmsnap",
+  "short_name": "llmsnap",
   "icons": [
     {
       "src": "/web-app-manifest-192x192.png",
