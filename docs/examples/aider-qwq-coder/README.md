@@ -1,12 +1,12 @@
-# aider, QwQ, Qwen-Coder 2.5 and llama-swap
+# aider, QwQ, Qwen-Coder 2.5 and llmsnap
 
-This guide show how to use aider and llama-swap to get a 100% local coding co-pilot setup. The focus is on the trickest part which is configuring aider, llama-swap and llama-server to work together.
+This guide show how to use aider and llmsnap to get a 100% local coding co-pilot setup. The focus is on the trickest part which is configuring aider, llmsnap and llama-server to work together.
 
 ## Here's what you you need:
 
 - aider - [installation docs](https://aider.chat/docs/install.html)
 - llama-server - [download latest release](https://github.com/ggml-org/llama.cpp/releases)
-- llama-swap - [download latest release](https://github.com/mostlygeek/llama-swap/releases)
+- llmsnap - [download latest release](https://github.com/napmany/llmsnap/releases)
 - [QwQ 32B](https://huggingface.co/bartowski/Qwen_QwQ-32B-GGUF) and [Qwen Coder 2.5 32B](https://huggingface.co/bartowski/Qwen2.5-Coder-32B-Instruct-GGUF) models
 - 24GB VRAM video card
 
@@ -24,7 +24,7 @@ aider --architect \
     --openai-api-base "http://10.0.1.24:8080/v1" \
 ```
 
-Set `--openai-api-base` to the IP and port where your llama-swap is running.
+Set `--openai-api-base` to the IP and port where your llmsnap is running.
 
 ## Create an aider model settings file
 
@@ -32,7 +32,7 @@ Set `--openai-api-base` to the IP and port where your llama-swap is running.
 # aider.model.settings.yml
 
 #
-# !!! important: model names must match llama-swap configuration names !!!
+# !!! important: model names must match llmsnap configuration names !!!
 #
 
 - name: "openai/QwQ"
@@ -62,7 +62,7 @@ Set `--openai-api-base` to the IP and port where your llama-swap is running.
   editor_model_name: "openai/qwen-coder-32B"
 ```
 
-## llama-swap configuration
+## llmsnap configuration
 
 ```yaml
 # config.yaml
@@ -95,9 +95,9 @@ models:
 
 ## Advanced, Dual GPU Configuration
 
-If you have _dual 24GB GPUs_ you can use llama-swap profiles to avoid swapping between QwQ and Qwen Coder.
+If you have _dual 24GB GPUs_ you can use llmsnap profiles to avoid swapping between QwQ and Qwen Coder.
 
-In llama-swap's configuration file:
+In llmsnap's configuration file:
 
 1. add a `profiles` section with `aider` as the profile name
 2. using the `env` field to specify the GPU IDs for each model

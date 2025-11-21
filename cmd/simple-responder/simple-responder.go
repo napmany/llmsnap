@@ -123,7 +123,7 @@ func main() {
 	})
 
 	// for issue #62 to check model name strips profile slug
-	// has to be one of the openAI API endpoints that llama-swap proxies
+	// has to be one of the openAI API endpoints that llmsnap proxies
 	// curl http://localhost:8080/v1/audio/speech -d '{"model":"profile:TheExpectedModel"}'
 	r.POST("/v1/audio/speech", func(c *gin.Context) {
 		body, err := io.ReadAll(c.Request.Body)

@@ -1,6 +1,6 @@
 # config.yaml
 
-llama-swap is designed to be very simple: one binary, one configuration file.
+llmsnap is designed to be very simple: one binary, one configuration file.
 
 ## minimal viable config
 
@@ -10,7 +10,7 @@ models:
     cmd: llama-server --port ${PORT} --model /path/to/model.gguf
 ```
 
-This is enough to launch `llama-server` to serve `model1`. Of course, llama-swap is about making it possible to serve many models:
+This is enough to launch `llama-server` to serve `model1`. Of course, llmsnap is about making it possible to serve many models:
 
 ```yaml
 models:
@@ -26,7 +26,7 @@ With this configuration models will be hot swapped and loaded on demand. The spe
 
 ## Advanced control with `cmd`
 
-llama-swap is also about customizability. You can use any CLI flag available:
+llmsnap is also about customizability. You can use any CLI flag available:
 
 ```yaml
 models:
@@ -41,7 +41,7 @@ models:
 
 ## Support for any OpenAI API compatible server
 
-llama-swap supports any OpenAI API compatible server. If you can run it on the CLI llama-swap will be able to manage it. Even if it's run in Docker or Podman containers.
+llmsnap supports any OpenAI API compatible server. If you can run it on the CLI llmsnap will be able to manage it. Even if it's run in Docker or Podman containers.
 
 ```yaml
 models:
@@ -70,7 +70,7 @@ models:
 
 ## Many more features..
 
-llama-swap supports many more features to customize how you want to manage your environment.
+llmsnap supports many more features to customize how you want to manage your environment.
 
 | Feature       | Description                                    |
 | ------------- | ---------------------------------------------- |
@@ -90,8 +90,8 @@ llama-swap supports many more features to customize how you want to manage your 
 > This is a copy of `config.example.yaml`. Always check that for the most up to date examples.
 
 ```yaml
-# llama-swap YAML configuration example
-# -------------------------------------
+# llmsnap YAML configuration example
+# -----------------------------------
 #
 # 💡 Tip - Use an LLM with this file!
 # ====================================
@@ -101,7 +101,7 @@ llama-swap supports many more features to customize how you want to manage your 
 # ====================================
 
 # Usage notes:
-# - Below are all the available configuration options for llama-swap.
+# - Below are all the available configuration options for llmsnap.
 # - Settings noted as "required" must be in your configuration file
 # - Settings noted as "optional" can be omitted
 
@@ -209,7 +209,7 @@ models:
     env:
       - "CUDA_VISIBLE_DEVICES=0,1,2"
 
-    # proxy: the URL where llama-swap routes API requests
+    # proxy: the URL where llmsnap routes API requests
     # - optional, default: http://localhost:${PORT}
     # - if you used ${PORT} in cmd this can be omitted
     # - if you use a custom port in cmd this *must* be set
@@ -312,7 +312,7 @@ models:
     # - useful for stopping commands managed by another system
     # - the upstream's process id is available in the ${PID} macro
     #
-    # When empty, llama-swap has this default behaviour:
+    # When empty, llmsnap has this default behaviour:
     # - on POSIX systems: a SIGTERM signal is sent
     # - on Windows, calls taskkill to stop the process
     # - processes have 5 seconds to shutdown until forceful termination is attempted
@@ -416,8 +416,8 @@ models:
 #
 # NOTE: the example below uses model names that are not defined above for demonstration purposes
 groups:
-  # group1 works the same as the default behaviour of llama-swap where only one model is allowed
-  # to run a time across the whole llama-swap instance
+  # group1 works the same as the default behaviour of llmsnap where only one model is allowed
+  # to run a time across the whole llmsnap instance
   "group1":
     # swap: controls the model swapping behaviour in within the group
     # - optional, default: true

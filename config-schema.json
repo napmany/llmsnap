@@ -164,7 +164,7 @@
                         "type": "string",
                         "default": "http://localhost:${PORT}",
                         "format": "uri",
-                        "description": "URL where llama-swap routes API requests. If custom port is used in cmd, this must be set."
+                        "description": "URL where llmsnap routes API requests. If custom port is used in cmd, this must be set."
                     },
                     "aliases": {
                         "type": "array",

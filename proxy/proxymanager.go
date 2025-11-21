@@ -414,7 +414,7 @@ func (pm *ProxyManager) listModelsHandler(c *gin.Context) {
 				"id":       modelId,
 				"object":   "model",
 				"created":  createdTime,
-				"owned_by": "llama-swap",
+				"owned_by": "llmsnap",
 			}
 
 			if name := strings.TrimSpace(modelConfig.Name); name != "" {

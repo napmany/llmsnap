@@ -85,8 +85,8 @@ The metadata will be schemaless, allowing users to define any key-value pairs th
 
 **Required Changes:**
 
-- Add metadata to each model record under the key `llamaswap_meta`
-- Only include `llamaswap_meta` if metadata is non-empty
+- Add metadata to each model record under the key `llmsnap_meta`
+- Only include `llmsnap_meta` if metadata is non-empty
 - Preserve all types when marshaling to JSON
 - Maintain existing sorting by model ID
 
@@ -100,10 +100,10 @@ The metadata will be schemaless, allowing users to define any key-value pairs th
       "id": "llama",
       "object": "model",
       "created": 1234567890,
-      "owned_by": "llama-swap",
+      "owned_by": "llmsnap",
       "name": "llama 3.1 8B",
       "description": "A small but capable model",
-      "llamaswap_meta": {
+      "llmsnap_meta": {
         "port": 10001,
         "temperature": 0.7,
         "note": "The llama is running on port 10001 temp=0.7, context=16384",
@@ -180,8 +180,8 @@ The metadata will be schemaless, allowing users to define any key-value pairs th
 
 **Test Cases:**
 
-- Model with metadata → verify `llamaswap_meta` key appears
-- Model without metadata → verify `llamaswap_meta` key is absent
+- Model with metadata → verify `llmsnap_meta` key appears
+- Model without metadata → verify `llmsnap_meta` key is absent
 - Verify all types are correctly marshaled to JSON
 - Verify nested structures are preserved
 - Verify macro substitution has occurred before serialization
@@ -230,8 +230,8 @@ The metadata will be schemaless, allowing users to define any key-value pairs th
 ### API Response Changes
 
 - [x] Modify `listModelsHandler()` in [proxy/proxymanager.go:350](proxy/proxymanager.go#L350)
-- [x] Add `llamaswap_meta` field to model records when metadata exists
-- [x] Ensure empty metadata results in omitted `llamaswap_meta` key
+- [x] Add `llmsnap_meta` field to model records when metadata exists
+- [x] Ensure empty metadata results in omitted `llmsnap_meta` key
 - [x] Verify JSON marshaling preserves all types correctly
 
 ### Testing - Config Package
@@ -257,7 +257,7 @@ The metadata will be schemaless, allowing users to define any key-value pairs th
 - [x] Update `TestProxyManager_ListModelsHandler` in [proxy/proxymanager_test.go](proxy/proxymanager_test.go)
 - [x] Add test case for model with metadata
 - [x] Add test case for model without metadata
-- [x] Verify `llamaswap_meta` key presence/absence
+- [x] Verify `llmsnap_meta` key presence/absence
 - [x] Verify type preservation in JSON output
 - [x] Verify macro substitution has occurred
 
@@ -274,10 +274,10 @@ None identified. The plan references the correct existing example in [config.exa
 
 ### Design Decisions
 
-1. **Why `llamaswap_meta` instead of merging into record?**
+1. **Why `llmsnap_meta` instead of merging into record?**
 
    - Avoids potential collisions with OpenAI API standard fields
-   - Makes it clear this is llama-swap specific metadata
+   - Makes it clear this is llmsnap specific metadata
    - Easier for clients to distinguish standard vs. custom fields
 
 2. **Why support nested structures?**

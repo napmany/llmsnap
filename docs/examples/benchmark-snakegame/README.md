@@ -1,4 +1,4 @@
-# Optimizing Code Generation with llama-swap
+# Optimizing Code Generation with llmsnap
 
 Finding the best mix of settings for your hardware can be time consuming. This example demonstrates using a custom configuration file to automate testing different scenarios to find the an optimal configuration.
 
@@ -105,7 +105,7 @@ models:
 
 To run the benchmark, execute the following commands:
 
-1. `llama-swap -config benchmark-config.yaml`
+1. `llmsnap -config benchmark-config.yaml`
 1. `./run-benchmark.sh http://localhost:8080 "3090-only" "3090-with-draft" "3090-P40-draft"`
 
 The [benchmark script](run-benchmark.sh) generates a CSV output of the results, which can be converted to a Markdown table for readability.

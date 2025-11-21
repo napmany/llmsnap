@@ -1,8 +1,8 @@
 # wol-proxy
 
-wol-proxy automatically wakes up a suspended llama-swap server using Wake-on-LAN when requests are received.
+wol-proxy automatically wakes up a suspended llmsnap server using Wake-on-LAN when requests are received.
 
-When a request arrives and llama-swap is unavailable, wol-proxy sends a WOL packet and holds the request until the server becomes available. If the server doesn't respond within the timeout period (default: 60 seconds), the request is dropped.
+When a request arrives and llmsnap is unavailable, wol-proxy sends a WOL packet and holds the request until the server becomes available. If the server doesn't respond within the timeout period (default: 60 seconds), the request is dropped.
 
 This utility helps conserve energy by allowing GPU-heavy servers to remain suspended when idle, as they can consume hundreds of watts even when not actively processing requests.
 

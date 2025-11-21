@@ -1,13 +1,14 @@
-![llama-swap header image](header2.png)
-![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/mostlygeek/llama-swap/total)
-![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/mostlygeek/llama-swap/go-ci.yml)
-![GitHub Repo stars](https://img.shields.io/github/stars/mostlygeek/llama-swap)
+<!-- TODO: Header image needs redesign with llmsnap branding -->
+![llmsnap header image](header.png)
+![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/napmany/llmsnap/total)
+![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/napmany/llmsnap/go-ci.yml)
+![GitHub Repo stars](https://img.shields.io/github/stars/napmany/llmsnap)
 
-# llama-swap
+# llmsnap
 
-Run multiple LLM models on your machine and hot-swap between them as needed. llama-swap works with any OpenAI API-compatible server, giving you the flexibility to switch models without restarting your applications.
+Run multiple LLM models on your machine and hot-swap between them as needed. llmsnap works with any OpenAI API-compatible server, giving you the flexibility to switch models without restarting your applications.
 
-Built in Go for performance and simplicity, llama-swap has zero dependencies and is incredibly easy to set up. Get started in minutes - just one binary and one configuration file.
+Built in Go for performance and simplicity, llmsnap has zero dependencies and is incredibly easy to set up. Get started in minutes - just one binary and one configuration file.
 
 ## Features:
 
@@ -25,7 +26,7 @@ Built in Go for performance and simplicity, llama-swap has zero dependencies and
   - `v1/rerank`, `v1/reranking`, `/rerank`
   - `/infill` - for code infilling
   - `/completion` - for completion endpoint
-- ✅ llama-swap API
+- ✅ llmsnap API
   - `/ui` - web UI
   - `/upstream/:model_id` - direct access to upstream server ([demo](https://github.com/mostlygeek/llama-swap/pull/31))
   - `/models/unload` - manually unload running models ([#58](https://github.com/mostlygeek/llama-swap/issues/58))
@@ -42,7 +43,7 @@ Built in Go for performance and simplicity, llama-swap has zero dependencies and
 
 ### Web UI
 
-llama-swap includes a real time web interface for monitoring logs and controlling models:
+llmsnap includes a real time web interface for monitoring logs and controlling models:
 
 <img width="1164" height="745" alt="image" src="https://github.com/user-attachments/assets/bacf3f9d-819f-430b-9ed2-1bfaa8d54579" />
 
@@ -53,26 +54,25 @@ The Activity Page shows recent requests:
 
 ## Installation
 
-llama-swap can be installed in multiple ways
+llmsnap can be installed in multiple ways
 
 1. Docker
 2. Homebrew (OSX and Linux)
-3. WinGet
-4. From release binaries
-5. From source
+3. From release binaries
+4. From source
 
-### Docker Install ([download images](https://github.com/mostlygeek/llama-swap/pkgs/container/llama-swap))
+### Docker Install ([download images](https://github.com/napmany/llmsnap/pkgs/container/llmsnap))
 
-Nightly container images with llama-swap and llama-server are built for multiple platforms (cuda, vulkan, intel, etc).
+Nightly container images with llmsnap and llama-server are built for multiple platforms (cuda, vulkan, intel, etc).
 
 ```shell
-$ docker pull ghcr.io/mostlygeek/llama-swap:cuda
+$ docker pull ghcr.io/napmany/llmsnap:cuda
 
 # run with a custom configuration and models directory
 $ docker run -it --rm --runtime nvidia -p 9292:8080 \
  -v /path/to/models:/models \
  -v /path/to/custom/config.yaml:/app/config.yaml \
- ghcr.io/mostlygeek/llama-swap:cuda
+ ghcr.io/napmany/llmsnap:cuda
 ```
 
 <details>
@@ -82,14 +82,14 @@ more examples
 
 ```shell
 # pull latest images per platform
-docker pull ghcr.io/mostlygeek/llama-swap:cpu
-docker pull ghcr.io/mostlygeek/llama-swap:cuda
-docker pull ghcr.io/mostlygeek/llama-swap:vulkan
-docker pull ghcr.io/mostlygeek/llama-swap:intel
-docker pull ghcr.io/mostlygeek/llama-swap:musa
+docker pull ghcr.io/napmany/llmsnap:cpu
+docker pull ghcr.io/napmany/llmsnap:cuda
+docker pull ghcr.io/napmany/llmsnap:vulkan
+docker pull ghcr.io/napmany/llmsnap:intel
+docker pull ghcr.io/napmany/llmsnap:musa
 
-# tagged llama-swap, platform and llama-server version images
-docker pull ghcr.io/mostlygeek/llama-swap:v166-cuda-b6795
+# tagged llmsnap, platform and llama-server version images
+docker pull ghcr.io/napmany/llmsnap:v166-cuda-b6795
 
 ```
 
@@ -98,34 +98,21 @@ docker pull ghcr.io/mostlygeek/llama-swap:v166-cuda-b6795
 ### Homebrew Install (macOS/Linux)
 
 ```shell
-brew tap mostlygeek/llama-swap
-brew install llama-swap
-llama-swap --config path/to/config.yaml --listen localhost:8080
-```
-
-### WinGet Install (Windows)
-
-> [!NOTE]
-> WinGet is maintained by community contributor [Dvd-Znf](https://github.com/Dvd-Znf) ([#327](https://github.com/mostlygeek/llama-swap/issues/327)). It is not an official part of llama-swap.
-
-```shell
-# install
-C:\> winget install llama-swap
-
-# upgrade
-C:\> winget upgrade llama-swap
+brew tap napmany/llmsnap
+brew install llmsnap
+llmsnap --config path/to/config.yaml --listen localhost:8080
 ```
 
 ### Pre-built Binaries
 
-Binaries are available on the [release](https://github.com/mostlygeek/llama-swap/releases) page for Linux, Mac, Windows and FreeBSD.
+Binaries are available on the [release](https://github.com/napmany/llmsnap/releases) page for Linux, Mac, Windows and FreeBSD.
 
 ### Building from source
 
 1. Building requires Go and Node.js (for UI).
-1. `git clone https://github.com/mostlygeek/llama-swap.git`
+1. `git clone https://github.com/napmany/llmsnap.git`
 1. `make clean all`
-1. look in the `build/` subdirectory for the llama-swap binary
+1. look in the `build/` subdirectory for the llmsnap binary
 
 ## Configuration
 
@@ -161,35 +148,35 @@ Almost all configuration settings are optional and can be added one step at a ti
 
 See the [configuration documentation](docs/configuration.md) for all options.
 
-## How does llama-swap work?
+## How does llmsnap work?
 
-When a request is made to an OpenAI compatible endpoint, llama-swap will extract the `model` value and load the appropriate server configuration to serve it. If the wrong upstream server is running, it will be replaced with the correct one. This is where the "swap" part comes in. The upstream server is automatically swapped to handle the request correctly.
+When a request is made to an OpenAI compatible endpoint, llmsnap will extract the `model` value and load the appropriate server configuration to serve it. If the wrong upstream server is running, it will be replaced with the correct one. This is where the "swap" part comes in. The upstream server is automatically swapped to handle the request correctly.
 
-In the most basic configuration llama-swap handles one model at a time. For more advanced use cases, the `groups` feature allows multiple models to be loaded at the same time. You have complete control over how your system resources are used.
+In the most basic configuration llmsnap handles one model at a time. For more advanced use cases, the `groups` feature allows multiple models to be loaded at the same time. You have complete control over how your system resources are used.
 
 ## Reverse Proxy Configuration (nginx)
 
-If you deploy llama-swap behind nginx, disable response buffering for streaming endpoints. By default, nginx buffers responses which breaks Server‑Sent Events (SSE) and streaming chat completion. ([#236](https://github.com/mostlygeek/llama-swap/issues/236))
+If you deploy llmsnap behind nginx, disable response buffering for streaming endpoints. By default, nginx buffers responses which breaks Server‑Sent Events (SSE) and streaming chat completion. ([#236](https://github.com/mostlygeek/llama-swap/issues/236))
 
 Recommended nginx configuration snippets:
 
 ```nginx
 # SSE for UI events/logs
 location /api/events {
-    proxy_pass http://your-llama-swap-backend;
+    proxy_pass http://your-llmsnap-backend;
     proxy_buffering off;
     proxy_cache off;
 }
 
 # Streaming chat completions (stream=true)
 location /v1/chat/completions {
-    proxy_pass http://your-llama-swap-backend;
+    proxy_pass http://your-llmsnap-backend;
     proxy_buffering off;
     proxy_cache off;
 }
 ```
 
-As a safeguard, llama-swap also sets `X-Accel-Buffering: no` on SSE responses. However, explicitly disabling `proxy_buffering` at your reverse proxy is still recommended for reliable streaming behavior.
+As a safeguard, llmsnap also sets `X-Accel-Buffering: no` on SSE responses. However, explicitly disabling `proxy_buffering` at your reverse proxy is still recommended for reliable streaming behavior.
 
 ## Monitoring Logs on the CLI
 
@@ -215,7 +202,7 @@ curl -Ns 'http://host/logs/stream?no-history'
 
 ## Do I need to use llama.cpp's server (llama-server)?
 
-Any OpenAI compatible server would work. llama-swap was originally designed for llama-server and it is the best supported.
+Any OpenAI compatible server would work.
 
 For Python based inference servers like vllm or tabbyAPI it is recommended to run them via podman or docker. This provides clean environment isolation as well as responding correctly to `SIGTERM` signals for proper shutdown.
 
@@ -224,4 +211,4 @@ For Python based inference servers like vllm or tabbyAPI it is recommended to ru
 > [!NOTE]
 > ⭐️ Star this project to help others discover it!
 
-[![Star History Chart](https://api.star-history.com/svg?repos=mostlygeek/llama-swap&type=Date)](https://www.star-history.com/#mostlygeek/llama-swap&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=napmany/llmsnap&type=Date)](https://www.star-history.com/#napmany/llmsnap&Date)

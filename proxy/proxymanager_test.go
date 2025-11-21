@@ -286,7 +286,7 @@ func TestProxyManager_ListModelsHandler(t *testing.T) {
 
 		ownedBy, ok := model["owned_by"].(string)
 		assert.True(t, ok, "owned_by should be a string")
-		assert.Equal(t, "llama-swap", ownedBy)
+		assert.Equal(t, "llmsnap", ownedBy)
 
 		// check for optional name and description
 		if modelID == "model1" {
