@@ -1,6 +1,6 @@
 #!/bin/sh
-# This script uninstalls llama-swap on Linux.
-# It removes the binary, systemd service, config.yaml (optional), and llama-swap user and group.
+# This script uninstalls llmsnap on Linux.
+# It removes the binary, systemd service, config.yaml (optional), and llmsnap user and group.
 
 set -eu
 
@@ -23,46 +23,46 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 configure_systemd() {
-    status "Stopping llama-swap service..."
-    $SUDO systemctl stop llama-swap
+    status "Stopping llmsnap service..."
+    $SUDO systemctl stop llmsnap
 
-    status "Disabling llama-swap service..."
-    $SUDO systemctl disable llama-swap
+    status "Disabling llmsnap service..."
+    $SUDO systemctl disable llmsnap
 }
 if available systemctl; then
     configure_systemd
 fi
 
-if available llama-swap; then
-    status "Removing llama-swap binary..."
-    $SUDO rm $(which llama-swap)
+if available llmsnap; then
+    status "Removing llmsnap binary..."
+    $SUDO rm $(which llmsnap)
 fi
 
-if [ -f "/usr/share/llama-swap/config.yaml" ]; then
+if [ -f "/usr/share/llmsnap/config.yaml" ]; then
     while true; do
-        printf "Delete config.yaml (/usr/share/llama-swap/config.yaml)? [y/N] " >&2
+        printf "Delete config.yaml (/usr/share/llmsnap/config.yaml)? [y/N] " >&2
         read answer
         case "$answer" in
-            [Yy]* ) 
-                $SUDO rm -r /usr/share/llama-swap
+            [Yy]* )
+                $SUDO rm -r /usr/share/llmsnap
                 break
                 ;;
-            [Nn]* | "" ) 
+            [Nn]* | "" )
                 break
                 ;;
-            * ) 
+            * )
                 echo "Invalid input. Please enter y or n."
                 ;;
         esac
     done
 fi
 
-if id llama-swap >/dev/null 2>&1; then
-    status "Removing llama-swap user..."
-    $SUDO userdel llama-swap
+if id llmsnap >/dev/null 2>&1; then
+    status "Removing llmsnap user..."
+    $SUDO userdel llmsnap
 fi
 
-if getent group llama-swap >/dev/null 2>&1; then
-    status "Removing llama-swap group..."
-    $SUDO groupdel llama-swap
+if getent group llmsnap >/dev/null 2>&1; then
+    status "Removing llmsnap group..."
+    $SUDO groupdel llmsnap
 fi

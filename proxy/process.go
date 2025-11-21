@@ -18,8 +18,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/mostlygeek/llama-swap/event"
-	"github.com/mostlygeek/llama-swap/proxy/config"
+	"github.com/napmany/llmsnap/event"
+	"github.com/napmany/llmsnap/proxy/config"
 )
 
 type ProcessState string
@@ -446,7 +446,7 @@ func (p *Process) StopImmediately() {
 	p.stopCommand()
 }
 
-// Shutdown is called when llama-swap is shutting down. It will give a little bit
+// Shutdown is called when llmsnap is shutting down. It will give a little bit
 // of time for any inflight requests to complete before shutting down. If the Process
 // is in the state of starting, it will cancel it and shut it down. Once a process is in
 // the StateShutdown state, it can not be started again.
@@ -964,7 +964,7 @@ func newStatusResponseWriter(p *Process, w http.ResponseWriter) *statusResponseW
 	s.Header().Set("Connection", "keep-alive")          // keep-alive
 	s.WriteHeader(http.StatusOK)                        // send status code 200
 	s.sendLine("━━━━━")
-	s.sendLine(fmt.Sprintf("llama-swap loading model: %s", p.ID))
+	s.sendLine(fmt.Sprintf("llmsnap loading model: %s", p.ID))
 	return s
 }
 

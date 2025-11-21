@@ -1,8 +1,8 @@
 # add this modeline for validation in vscode
-# yaml-language-server: $schema=https://raw.githubusercontent.com/mostlygeek/llama-swap/refs/heads/main/config-schema.json
+# yaml-language-server: $schema=https://raw.githubusercontent.com/napmany/llmsnap/refs/heads/main/config-schema.json
 #
-# llama-swap YAML configuration example
-# -------------------------------------
+# llmsnap YAML configuration example
+# -----------------------------------
 #
 # 💡 Tip - Use an LLM with this file!
 # ====================================
@@ -12,7 +12,7 @@
 # ====================================
 
 # Usage notes:
-# - Below are all the available configuration options for llama-swap.
+# - Below are all the available configuration options for llmsnap.
 # - Settings noted as "required" must be in your configuration file
 # - Settings noted as "optional" can be omitted
 
@@ -142,7 +142,7 @@ models:
     env:
       - "CUDA_VISIBLE_DEVICES=0,1,2"
 
-    # proxy: the URL where llama-swap routes API requests
+    # proxy: the URL where llmsnap routes API requests
     # - optional, default: http://localhost:${PORT}
     # - if you used ${PORT} in cmd this can be omitted
     # - if you use a custom port in cmd this *must* be set
@@ -249,7 +249,7 @@ models:
     # - useful for stopping commands managed by another system
     # - the upstream's process id is available in the ${PID} macro
     #
-    # When empty, llama-swap has this default behaviour:
+    # When empty, llmsnap has this default behaviour:
     # - on POSIX systems: a SIGTERM signal is sent
     # - on Windows, calls taskkill to stop the process
     # - processes have 5 seconds to shutdown until forceful termination is attempted
@@ -353,8 +353,8 @@ models:
 #
 # NOTE: the example below uses model names that are not defined above for demonstration purposes
 groups:
-  # group1 works the same as the default behaviour of llama-swap where only one model is allowed
-  # to run a time across the whole llama-swap instance
+  # group1 works the same as the default behaviour of llmsnap where only one model is allowed
+  # to run a time across the whole llmsnap instance
   "group1":
     # swap: controls the model swapping behaviour in within the group
     # - optional, default: true

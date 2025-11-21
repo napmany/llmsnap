@@ -15,8 +15,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/mostlygeek/llama-swap/event"
-	"github.com/mostlygeek/llama-swap/proxy/config"
+	"github.com/napmany/llmsnap/event"
+	"github.com/napmany/llmsnap/proxy/config"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 )
@@ -414,7 +414,7 @@ func (pm *ProxyManager) listModelsHandler(c *gin.Context) {
 				"id":       modelId,
 				"object":   "model",
 				"created":  createdTime,
-				"owned_by": "llama-swap",
+				"owned_by": "llmsnap",
 			}
 
 			if name := strings.TrimSpace(modelConfig.Name); name != "" {

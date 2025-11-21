@@ -11,7 +11,7 @@ The models used are:
 * [Bartowski Qwen2.5-Coder-32B-Instruct](https://huggingface.co/bartowski/Qwen2.5-Coder-32B-Instruct-GGUF)
 * [Bartowski Qwen2.5-Coder-0.5B-Instruct](https://huggingface.co/bartowski/Qwen2.5-Coder-0.5B-Instruct-GGUF)
 
-The llama-swap configuration is as follows:
+The llmsnap configuration is as follows:
 
 ```yaml
 models:

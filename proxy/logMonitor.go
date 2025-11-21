@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mostlygeek/llama-swap/event"
+	"github.com/napmany/llmsnap/event"
 )
 
 type LogLevel int

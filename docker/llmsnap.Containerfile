@@ -28,11 +28,11 @@ USER $UID:$GID
 
 WORKDIR /app
 RUN \
-    curl -LO https://github.com/mostlygeek/llama-swap/releases/download/v"${LS_VER}"/llama-swap_"${LS_VER}"_linux_amd64.tar.gz && \
-    tar -zxf llama-swap_"${LS_VER}"_linux_amd64.tar.gz && \
-    rm llama-swap_"${LS_VER}"_linux_amd64.tar.gz
+    curl -LO https://github.com/napmany/llmsnap/releases/download/v"${LS_VER}"/llmsnap_"${LS_VER}"_linux_amd64.tar.gz && \
+    tar -zxf llmsnap_"${LS_VER}"_linux_amd64.tar.gz && \
+    rm llmsnap_"${LS_VER}"_linux_amd64.tar.gz
 
 COPY --chown=$UID:$GID config.example.yaml /app/config.yaml
 
 HEALTHCHECK CMD curl -f http://localhost:8080/ || exit 1
-ENTRYPOINT [ "/app/llama-swap", "-config", "/app/config.yaml" ]
+ENTRYPOINT [ "/app/llmsnap", "-config", "/app/config.yaml" ]

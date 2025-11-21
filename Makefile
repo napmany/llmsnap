@@ -1,5 +1,5 @@
 # Define variables for the application
-APP_NAME = llama-swap
+APP_NAME = llmsnap
 BUILD_DIR = build
 
 # Get the current Git hash

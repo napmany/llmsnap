@@ -1,10 +1,10 @@
 #!/bin/sh
-# This script installs llama-swap on Linux.
-# It detects the current operating system architecture and installs the appropriate version of llama-swap.
+# This script installs llmsnap on Linux.
+# It detects the current operating system architecture and installs the appropriate version of llmsnap.
 
 set -eu
 
-LLAMA_SWAP_DEFAULT_ADDRESS=${LLAMA_SWAP_DEFAULT_ADDRESS:-"127.0.0.1:8080"}
+LLMSNAP_DEFAULT_ADDRESS=${LLMSNAP_DEFAULT_ADDRESS:-"127.0.0.1:8080"}
 
 red="$( (/usr/bin/tput bold || :; /usr/bin/tput setaf 1 || :) 2>&-)"
 plain="$( (/usr/bin/tput sgr0 || :) 2>&-)"
@@ -74,7 +74,7 @@ import urllib.request
 
 ASSET_NAME = "${ASSET_NAME}"
 
-with urllib.request.urlopen("https://api.github.com/repos/mostlygeek/llama-swap/releases/latest") as resp:
+with urllib.request.urlopen("https://api.github.com/repos/napmany/llmsnap/releases/latest") as resp:
     data = json.load(resp)
     for asset in data.get("assets", []):
         if ASSET_NAME in asset.get("name", ""):
@@ -85,7 +85,7 @@ with urllib.request.urlopen("https://api.github.com/repos/mostlygeek/llama-swap/
         exit(1)
 
 print("Downloading:", url, file=sys.stderr)
-output_path = os.path.join("${TMPDIR}", "llama-swap.tar.gz")
+output_path = os.path.join("${TMPDIR}", "llmsnap.tar.gz")
 urllib.request.urlretrieve(url, output_path)
 print(output_path)
 EOF
@@ -97,34 +97,34 @@ EOF
     fi
 
     status "Extracting to /usr/local/bin"
-    $SUDO tar -xzf "$TARFILE" -C /usr/local/bin llama-swap
+    $SUDO tar -xzf "$TARFILE" -C /usr/local/bin llmsnap
 }
 download_binary
 
 configure_systemd() {
-    if ! id llama-swap >/dev/null 2>&1; then
-        status "Creating llama-swap user..."
-        $SUDO useradd -r -s /bin/false -U -m -d /usr/share/llama-swap llama-swap
+    if ! id llmsnap >/dev/null 2>&1; then
+        status "Creating llmsnap user..."
+        $SUDO useradd -r -s /bin/false -U -m -d /usr/share/llmsnap llmsnap
     fi
     if getent group render >/dev/null 2>&1; then
-        status "Adding llama-swap user to render group..."
-        $SUDO usermod -a -G render llama-swap
+        status "Adding llmsnap user to render group..."
+        $SUDO usermod -a -G render llmsnap
     fi
     if getent group video >/dev/null 2>&1; then
-        status "Adding llama-swap user to video group..."
-        $SUDO usermod -a -G video llama-swap
+        status "Adding llmsnap user to video group..."
+        $SUDO usermod -a -G video llmsnap
     fi
     if getent group docker >/dev/null 2>&1; then
-        status "Adding llama-swap user to docker group..."
-        $SUDO usermod -a -G docker llama-swap
+        status "Adding llmsnap user to docker group..."
+        $SUDO usermod -a -G docker llmsnap
     fi
 
-    status "Adding current user to llama-swap group..."
-    $SUDO usermod -a -G llama-swap "$(whoami)"
+    status "Adding current user to llmsnap group..."
+    $SUDO usermod -a -G llmsnap "$(whoami)"
 
-    if [ ! -f "/usr/share/llama-swap/config.yaml" ]; then
+    if [ ! -f "/usr/share/llmsnap/config.yaml" ]; then
         status "Creating default config.yaml..."
-        cat <<EOF | $SUDO -u llama-swap tee /usr/share/llama-swap/config.yaml >/dev/null
+        cat <<EOF | $SUDO -u llmsnap tee /usr/share/llmsnap/config.yaml >/dev/null
 # default 15s likely to fail for default models due to downloading models
 healthCheckTimeout: 60
 
@@ -151,18 +151,18 @@ models:
 EOF
     fi
 
-    status "Creating llama-swap systemd service..."
-    cat <<EOF | $SUDO tee /etc/systemd/system/llama-swap.service >/dev/null
+    status "Creating llmsnap systemd service..."
+    cat <<EOF | $SUDO tee /etc/systemd/system/llmsnap.service >/dev/null
 [Unit]
-Description=llama-swap
+Description=llmsnap
 After=network.target
 
 [Service]
-User=llama-swap
-Group=llama-swap
+User=llmsnap
+Group=llmsnap
 
 # set this to match your environment
-ExecStart=/usr/local/bin/llama-swap --config /usr/share/llama-swap/config.yaml --watch-config -listen ${LLAMA_SWAP_DEFAULT_ADDRESS}
+ExecStart=/usr/local/bin/llmsnap --config /usr/share/llmsnap/config.yaml --watch-config -listen ${LLMSNAP_DEFAULT_ADDRESS}
 
 Restart=on-failure
 RestartSec=3
@@ -175,11 +175,11 @@ EOF
     SYSTEMCTL_RUNNING="$(systemctl is-system-running || true)"
     case $SYSTEMCTL_RUNNING in
         running|degraded)
-            status "Enabling and starting llama-swap service..."
+            status "Enabling and starting llmsnap service..."
             $SUDO systemctl daemon-reload
-            $SUDO systemctl enable llama-swap
+            $SUDO systemctl enable llmsnap
 
-            start_service() { $SUDO systemctl restart llama-swap; }
+            start_service() { $SUDO systemctl restart llmsnap; }
             trap start_service EXIT
             ;;
         *)
@@ -196,8 +196,8 @@ if available systemctl; then
 fi
 
 install_success() {
-    status "The llama-swap API is now available at http://${LLAMA_SWAP_DEFAULT_ADDRESS}"
-    status 'Customize the config file at /usr/share/llama-swap/config.yaml.'
+    status "The llmsnap API is now available at http://${LLMSNAP_DEFAULT_ADDRESS}"
+    status 'Customize the config file at /usr/share/llmsnap/config.yaml.'
     status 'Install complete.'
 }
 

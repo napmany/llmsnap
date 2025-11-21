@@ -14,9 +14,9 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/gin-gonic/gin"
-	"github.com/mostlygeek/llama-swap/event"
-	"github.com/mostlygeek/llama-swap/proxy"
-	"github.com/mostlygeek/llama-swap/proxy/config"
+	"github.com/napmany/llmsnap/event"
+	"github.com/napmany/llmsnap/proxy"
+	"github.com/napmany/llmsnap/proxy/config"
 )
 
 var (
@@ -193,10 +193,10 @@ func main() {
 	go func() {
 		var err error
 		if useTLS {
-			fmt.Printf("llama-swap listening with TLS on https://%s\n", *listenStr)
+			fmt.Printf("llmsnap listening with TLS on https://%s\n", *listenStr)
 			err = srv.ListenAndServeTLS(*certFile, *keyFile)
 		} else {
-			fmt.Printf("llama-swap listening on http://%s\n", *listenStr)
+			fmt.Printf("llmsnap listening on http://%s\n", *listenStr)
 			err = srv.ListenAndServe()
 		}
 		if err != nil && err != http.ErrServerClosed {

@@ -1,7 +1,7 @@
 package main
 
 // created for issue: #252 https://github.com/mostlygeek/llama-swap/issues/252
-// this simple benchmark tool sends a lot of small chat completion requests to llama-swap
+// this simple benchmark tool sends a lot of small chat completion requests to llmsnap
 // to make sure all the requests are accounted for.
 //
 // requests can be sent in parallel, and the tool will report the results.

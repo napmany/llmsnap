@@ -6,7 +6,7 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/mostlygeek/llama-swap/proxy/config"
+	"github.com/napmany/llmsnap/proxy/config"
 )
 
 type ProcessGroup struct {

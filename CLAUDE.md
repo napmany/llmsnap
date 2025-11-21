@@ -1,8 +1,8 @@
-# Project: llama-swap
+# Project: llmsnap
 
 ## Project Description:
 
-llama-swap is a light weight, transparent proxy server that provides automatic model swapping to llama.cpp's server.
+llmsnap is a light weight, transparent proxy server that provides automatic model swapping to vllm, llama.cpp and other OpenAI compatible servers.
 
 ## Tech stack
 

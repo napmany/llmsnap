@@ -1,4 +1,4 @@
-# this makes use of llama-swap's profile feature to
+# this makes use of llmsnap's profile feature to
 # keep the architect and editor models in VRAM on different GPUs
 
 - name: "openai/aider:QwQ"

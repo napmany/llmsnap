@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/mostlygeek/llama-swap/event"
+	"github.com/napmany/llmsnap/event"
 	"github.com/stretchr/testify/assert"
 )
 
