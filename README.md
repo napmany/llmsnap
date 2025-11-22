@@ -45,12 +45,12 @@ Built in Go for performance and simplicity, llmsnap has zero dependencies and is
 
 llmsnap includes a real time web interface for monitoring logs and controlling models:
 
-<img width="1164" height="745" alt="image" src="https://github.com/user-attachments/assets/bacf3f9d-819f-430b-9ed2-1bfaa8d54579" />
+<img width="1489" height="967" alt="Screenshot 2025-11-22 at 19 07 21" src="https://github.com/user-attachments/assets/350439d5-dec1-4f85-8a29-c9be516043c3" />
 
 
 The Activity Page shows recent requests:
 
-<img width="1360" height="963" alt="image" src="https://github.com/user-attachments/assets/5f3edee6-d03a-4ae5-ae06-b20ac1f135bd" />
+<img width="1488" height="964" alt="Screenshot 2025-11-22 at 19 10 11" src="https://github.com/user-attachments/assets/05c561d0-da99-45cb-8313-c81a82e4e1b4" />
 
 ## Installation
 
