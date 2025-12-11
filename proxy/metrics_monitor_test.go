@@ -378,7 +378,7 @@ func TestMetricsMonitor_ResponseBodyCopier(t *testing.T) {
 	t.Run("captures response body", func(t *testing.T) {
 		rec := httptest.NewRecorder()
 		ginCtx, _ := gin.CreateTestContext(rec)
-		copier := newBodyCopier(ginCtx.Writer)
+		copier := newBodyCopier(ginCtx.Writer, time.Now())
 
 		testData := []byte("test response body")
 		n, err := copier.Write(testData)
@@ -392,7 +392,7 @@ func TestMetricsMonitor_ResponseBodyCopier(t *testing.T) {
 	t.Run("sets start time on first write", func(t *testing.T) {
 		rec := httptest.NewRecorder()
 		ginCtx, _ := gin.CreateTestContext(rec)
-		copier := newBodyCopier(ginCtx.Writer)
+		copier := newBodyCopier(ginCtx.Writer, time.Now())
 
 		assert.True(t, copier.StartTime().IsZero())
 
@@ -404,7 +404,7 @@ func TestMetricsMonitor_ResponseBodyCopier(t *testing.T) {
 	t.Run("preserves headers", func(t *testing.T) {
 		rec := httptest.NewRecorder()
 		ginCtx, _ := gin.CreateTestContext(rec)
-		copier := newBodyCopier(ginCtx.Writer)
+		copier := newBodyCopier(ginCtx.Writer, time.Now())
 
 		copier.Header().Set("X-Test", "value")
 
@@ -414,12 +414,21 @@ func TestMetricsMonitor_ResponseBodyCopier(t *testing.T) {
 	t.Run("preserves status code", func(t *testing.T) {
 		rec := httptest.NewRecorder()
 		ginCtx, _ := gin.CreateTestContext(rec)
-		copier := newBodyCopier(ginCtx.Writer)
+		copier := newBodyCopier(ginCtx.Writer, time.Now())
 
 		copier.WriteHeader(http.StatusCreated)
 
 		// Gin's ResponseWriter tracks status internally
 		assert.Equal(t, http.StatusCreated, copier.Status())
+	})
+
+	t.Run("tracks request start time", func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		ginCtx, _ := gin.CreateTestContext(rec)
+		requestTime := time.Now()
+		copier := newBodyCopier(ginCtx.Writer, requestTime)
+
+		assert.Equal(t, requestTime, copier.RequestTime())
 	})
 }
 
@@ -560,6 +569,164 @@ func TestMetricsMonitor_ParseMetrics(t *testing.T) {
 		metrics := mm.getMetrics()
 		assert.Equal(t, 1, len(metrics))
 		assert.Equal(t, -1, metrics[0].CachedTokens) // Default value when not present
+	})
+
+	t.Run("calculates TokensPerSecond when timings absent", func(t *testing.T) {
+		mm := newMetricsMonitor(testLogger, 10)
+
+		// vLLM-style response: only usage, no timings
+		responseBody := `{
+			"usage": {
+				"prompt_tokens": 10,
+				"completion_tokens": 20
+			}
+		}`
+
+		nextHandler := func(modelID string, w http.ResponseWriter, r *http.Request) error {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			// Start writing, then sleep to simulate streaming duration
+			w.Write([]byte(responseBody[:20]))
+			time.Sleep(2000 * time.Millisecond)
+			w.Write([]byte(responseBody[20:]))
+			return nil
+		}
+
+		req := httptest.NewRequest("POST", "/test", nil)
+		rec := httptest.NewRecorder()
+		ginCtx, _ := gin.CreateTestContext(rec)
+
+		err := mm.wrapHandler("test-model", ginCtx.Writer, req, nextHandler)
+		assert.NoError(t, err)
+
+		metrics := mm.getMetrics()
+		assert.Equal(t, 1, len(metrics))
+		assert.Equal(t, 10, metrics[0].InputTokens)
+		assert.Equal(t, 20, metrics[0].OutputTokens)
+		// Should calculate speed: 20 tokens / 2 seconds = ~10 tokens/sec
+		// Allow some variance due to timing precision
+		assert.Greater(t, metrics[0].TokensPerSecond, 8.0)
+		assert.Less(t, metrics[0].TokensPerSecond, 12.0)
+		// PromptPerSecond should remain unknown
+		assert.Equal(t, -1.0, metrics[0].PromptPerSecond)
+	})
+
+	t.Run("prefers backend timings over calculation", func(t *testing.T) {
+		mm := newMetricsMonitor(testLogger, 10)
+
+		// Response with both usage and timings
+		// Timings should be used even if they differ from calculated values
+		responseBody := `{
+			"usage": {
+				"prompt_tokens": 50,
+				"completion_tokens": 25
+			},
+			"timings": {
+				"prompt_n": 50,
+				"predicted_n": 25,
+				"prompt_per_second": 150.5,
+				"predicted_per_second": 25.5,
+				"prompt_ms": 500.0,
+				"predicted_ms": 1000.0
+			}
+		}`
+
+		nextHandler := func(modelID string, w http.ResponseWriter, r *http.Request) error {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			// Simulate different duration than timings reports
+			time.Sleep(2000 * time.Millisecond)
+			w.Write([]byte(responseBody))
+			return nil
+		}
+
+		req := httptest.NewRequest("POST", "/test", nil)
+		rec := httptest.NewRecorder()
+		ginCtx, _ := gin.CreateTestContext(rec)
+
+		err := mm.wrapHandler("test-model", ginCtx.Writer, req, nextHandler)
+		assert.NoError(t, err)
+
+		metrics := mm.getMetrics()
+		assert.Equal(t, 1, len(metrics))
+		// Should use backend timings, NOT calculated values
+		assert.Equal(t, 25.5, metrics[0].TokensPerSecond)
+		assert.Equal(t, 150.5, metrics[0].PromptPerSecond)
+		assert.Equal(t, 1500, metrics[0].DurationMs) // 500 + 1000 from timings
+	})
+
+	t.Run("handles zero output tokens", func(t *testing.T) {
+		mm := newMetricsMonitor(testLogger, 10)
+
+		// Response with no completion tokens
+		responseBody := `{
+			"usage": {
+				"prompt_tokens": 10,
+				"completion_tokens": 0
+			}
+		}`
+
+		nextHandler := func(modelID string, w http.ResponseWriter, r *http.Request) error {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			time.Sleep(100 * time.Millisecond)
+			w.Write([]byte(responseBody))
+			return nil
+		}
+
+		req := httptest.NewRequest("POST", "/test", nil)
+		rec := httptest.NewRecorder()
+		ginCtx, _ := gin.CreateTestContext(rec)
+
+		err := mm.wrapHandler("test-model", ginCtx.Writer, req, nextHandler)
+		assert.NoError(t, err)
+
+		metrics := mm.getMetrics()
+		assert.Equal(t, 1, len(metrics))
+		assert.Equal(t, 10, metrics[0].InputTokens)
+		assert.Equal(t, 0, metrics[0].OutputTokens)
+		// TokensPerSecond should remain -1 (unknown), not divide by zero
+		assert.Equal(t, -1.0, metrics[0].TokensPerSecond)
+	})
+
+	t.Run("handles very fast responses", func(t *testing.T) {
+		mm := newMetricsMonitor(testLogger, 10)
+
+		// Response that completes very quickly (< 1ms)
+		responseBody := `{
+			"usage": {
+				"prompt_tokens": 5,
+				"completion_tokens": 2
+			}
+		}`
+
+		nextHandler := func(modelID string, w http.ResponseWriter, r *http.Request) error {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			// No sleep - respond immediately
+			w.Write([]byte(responseBody))
+			return nil
+		}
+
+		req := httptest.NewRequest("POST", "/test", nil)
+		rec := httptest.NewRecorder()
+		ginCtx, _ := gin.CreateTestContext(rec)
+
+		err := mm.wrapHandler("test-model", ginCtx.Writer, req, nextHandler)
+		assert.NoError(t, err)
+
+		metrics := mm.getMetrics()
+		assert.Equal(t, 1, len(metrics))
+		assert.Equal(t, 5, metrics[0].InputTokens)
+		assert.Equal(t, 2, metrics[0].OutputTokens)
+		// Should handle very fast responses without panicking
+		// Speed may be very high but should be calculated if duration > 0
+		if metrics[0].DurationMs > 0 {
+			assert.Greater(t, metrics[0].TokensPerSecond, 0.0)
+		} else {
+			// If duration is exactly 0, speed stays -1
+			assert.Equal(t, -1.0, metrics[0].TokensPerSecond)
+		}
 	})
 }
 
