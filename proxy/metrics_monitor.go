@@ -95,7 +95,8 @@ func (mp *metricsMonitor) wrapHandler(
 	request *http.Request,
 	next func(modelID string, w http.ResponseWriter, r *http.Request) error,
 ) error {
-	recorder := newBodyCopier(writer)
+	requestStartTime := time.Now()
+	recorder := newBodyCopier(writer, requestStartTime)
 	if err := next(modelID, recorder, request); err != nil {
 		return err
 	}
@@ -115,7 +116,7 @@ func (mp *metricsMonitor) wrapHandler(
 	}
 
 	if strings.Contains(recorder.Header().Get("Content-Type"), "text/event-stream") {
-		if tm, err := processStreamingResponse(modelID, recorder.StartTime(), body); err != nil {
+		if tm, err := processStreamingResponse(modelID, recorder.RequestTime(), body); err != nil {
 			mp.logger.Warnf("error processing streaming response: %v, path=%s", err, request.URL.Path)
 		} else {
 			mp.addMetrics(tm)
@@ -127,7 +128,7 @@ func (mp *metricsMonitor) wrapHandler(
 			timings := parsed.Get("timings")
 
 			if usage.Exists() || timings.Exists() {
-				if tm, err := parseMetrics(modelID, recorder.StartTime(), usage, timings); err != nil {
+				if tm, err := parseMetrics(modelID, recorder.RequestTime(), usage, timings); err != nil {
 					mp.logger.Warnf("error parsing metrics: %v, path=%s", err, request.URL.Path)
 				} else {
 					mp.addMetrics(tm)
@@ -239,6 +240,13 @@ func parseMetrics(modelID string, start time.Time, usage, timings gjson.Result) 
 		}
 	}
 
+	// Calculate TokensPerSecond from usage data when backend doesn't provide it
+	// This is useful for backends like vLLM that return token counts but not performance metrics
+	// Note: Calculated speeds include network latency and are less accurate than backend-provided timings
+	if tokensPerSecond == -1.0 && outputTokens > 0 && durationMs > 0 {
+		tokensPerSecond = float64(outputTokens) / (float64(durationMs) / 1000.0)
+	}
+
 	return TokenMetrics{
 		Timestamp:       time.Now(),
 		Model:           modelID,
@@ -255,17 +263,19 @@ func parseMetrics(modelID string, start time.Time, usage, timings gjson.Result) 
 // while also capturing it in a buffer for later processing
 type responseBodyCopier struct {
 	gin.ResponseWriter
-	body  *bytes.Buffer
-	tee   io.Writer
-	start time.Time
+	body        *bytes.Buffer
+	tee         io.Writer
+	start       time.Time // Time of first write (for TTFT calculation)
+	requestTime time.Time // Time when request handler started (for total duration)
 }
 
-func newBodyCopier(w gin.ResponseWriter) *responseBodyCopier {
+func newBodyCopier(w gin.ResponseWriter, requestTime time.Time) *responseBodyCopier {
 	bodyBuffer := &bytes.Buffer{}
 	return &responseBodyCopier{
 		ResponseWriter: w,
 		body:           bodyBuffer,
 		tee:            io.MultiWriter(w, bodyBuffer),
+		requestTime:    requestTime,
 	}
 }
 
@@ -288,4 +298,8 @@ func (w *responseBodyCopier) Header() http.Header {
 
 func (w *responseBodyCopier) StartTime() time.Time {
 	return w.start
+}
+
+func (w *responseBodyCopier) RequestTime() time.Time {
+	return w.requestTime
 }
