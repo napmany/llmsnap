@@ -301,6 +301,7 @@ func (p *Process) start() error {
 	p.cmd.Env = append(p.cmd.Environ(), p.config.Env...)
 	p.cmd.Cancel = p.cmdStopUpstreamProcess
 	p.cmd.WaitDelay = p.gracefulStopTimeout
+	setProcAttributes(p.cmd)
 
 	p.cmdMutex.Lock()
 	p.cancelUpstream = ctxCancelUpstream
@@ -746,7 +747,10 @@ func (p *Process) ProxyRequest(w http.ResponseWriter, r *http.Request) {
 		// add a sync so the streaming client only runs when the goroutine has exited
 
 		isStreaming, _ := r.Context().Value(proxyCtxKey("streaming")).(bool)
-		if p.config.SendLoadingState != nil && *p.config.SendLoadingState && isStreaming {
+
+		// PR #417 (no support for anthropic v1/messages yet)
+		isChatCompletions := strings.HasPrefix(r.URL.Path, "/v1/chat/completions")
+		if p.config.SendLoadingState != nil && *p.config.SendLoadingState && isStreaming && isChatCompletions {
 			srw = newStatusResponseWriter(p, w)
 			go srw.statusUpdates(swapCtx)
 		} else {
@@ -865,6 +869,7 @@ func (p *Process) cmdStopUpstreamProcess() error {
 		stopCmd := exec.Command(stopArgs[0], stopArgs[1:]...)
 		stopCmd.Stdout = p.processLogger
 		stopCmd.Stderr = p.processLogger
+		setProcAttributes(stopCmd)
 		stopCmd.Env = p.cmd.Env
 
 		if err := stopCmd.Run(); err != nil {
