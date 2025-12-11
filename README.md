@@ -1,4 +1,4 @@
-![llmsnap header image](header.jpeg)
+![llmsnap](https://github.com/user-attachments/assets/e6c55547-b5c3-4e21-9feb-0bcf2bf52806)
 ![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/napmany/llmsnap/total)
 ![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/napmany/llmsnap/go-ci.yml)
 ![GitHub Repo stars](https://img.shields.io/github/stars/napmany/llmsnap)
