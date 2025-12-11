@@ -40,6 +40,8 @@ const (
 
 	// httpDialTimeout is the timeout for establishing TCP connections
 	httpDialTimeout = 500 * time.Millisecond
+
+	defaultConcurrentLimit = 100
 )
 
 type StopStrategy int
@@ -97,7 +99,7 @@ type Process struct {
 }
 
 func NewProcess(ID string, healthCheckTimeout int, config config.ModelConfig, processLogger *LogMonitor, proxyLogger *LogMonitor) *Process {
-	concurrentLimit := 10
+	concurrentLimit := defaultConcurrentLimit
 	if config.ConcurrencyLimit > 0 {
 		concurrentLimit = config.ConcurrencyLimit
 	}
@@ -725,7 +727,7 @@ func (p *Process) ProxyRequest(w http.ResponseWriter, r *http.Request) {
 	case p.concurrencyLimitSemaphore <- struct{}{}:
 		defer func() { <-p.concurrencyLimitSemaphore }()
 	default:
-		http.Error(w, "Too many requests", http.StatusTooManyRequests)
+		http.Error(w, "Too many requests. Consider increasing concurrencyLimit in your llmsnap model configuration.", http.StatusTooManyRequests)
 		return
 	}
 
