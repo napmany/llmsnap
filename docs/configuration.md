@@ -282,7 +282,7 @@ models:
     # - optional, default: 0
     # - useful for limiting the number of active parallel requests a model can process
     # - must be set per model
-    # - any number greater than 0 will override the internal default value of 10
+    # - any number greater than 0 will override the internal default value of 100
     # - any requests that exceeds the limit will receive an HTTP 429 Too Many Requests response
     # - recommended to be omitted and the default used
     concurrencyLimit: 0

@@ -105,7 +105,8 @@ func (mp *metricsMonitor) wrapHandler(
 	// and we can only log errors but not send them to clients
 
 	if recorder.Status() != http.StatusOK {
-		mp.logger.Warnf("metrics skipped, HTTP status=%d, path=%s", recorder.Status(), request.URL.Path)
+		errorMsg := string(recorder.body.Bytes())
+		mp.logger.Warnf("metrics skipped, HTTP status=%d, path=%s, error=%s", recorder.Status(), request.URL.Path, errorMsg)
 		return nil
 	}
 

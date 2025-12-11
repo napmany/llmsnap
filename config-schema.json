@@ -216,7 +216,7 @@
                         "type": "integer",
                         "minimum": 0,
                         "default": 0,
-                        "description": "Overrides allowed number of active parallel requests to a model. 0 uses internal default of 10. >0 overrides default. Requests exceeding limit get HTTP 429."
+                        "description": "Maximum number of concurrent HTTP requests allowed to this model. 0 uses internal default of 100. >0 overrides default. Requests exceeding limit get HTTP 429 with guidance."
                     },
                     "sendLoadingState": {
                         "type": "boolean",
