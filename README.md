@@ -1,4 +1,3 @@
-<!-- TODO: Header image needs redesign with llmsnap branding -->
 ![llmsnap header image](header.jpeg)
 ![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/napmany/llmsnap/total)
 ![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/napmany/llmsnap/go-ci.yml)
@@ -14,7 +13,7 @@ Built in Go for performance and simplicity, llmsnap has zero dependencies and is
 
 - ✅ Easy to deploy and configure: one binary, one configuration file. no external dependencies
 - ✅ On-demand model switching
-- ✅ Use any local OpenAI compatible server (llama.cpp, vllm, tabbyAPI, etc)
+- ✅ Use any local OpenAI compatible server (llama.cpp, vllm, tabbyAPI, etc.)
   - future proof, upgrade your inference servers at any time.
 - ✅ OpenAI API supported endpoints:
   - `v1/completions`
@@ -22,6 +21,8 @@ Built in Go for performance and simplicity, llmsnap has zero dependencies and is
   - `v1/embeddings`
   - `v1/audio/speech` ([#36](https://github.com/mostlygeek/llama-swap/issues/36))
   - `v1/audio/transcriptions` ([docs](https://github.com/mostlygeek/llama-swap/issues/41#issuecomment-2722637867))
+- ✅ Anthropic API supported endpoints:
+  - `v1/messages`
 - ✅ llama-server (llama.cpp) supported endpoints
   - `v1/rerank`, `v1/reranking`, `/rerank`
   - `/infill` - for code infilling
@@ -63,7 +64,7 @@ llmsnap can be installed in multiple ways
 
 ### Docker Install ([download images](https://github.com/napmany/llmsnap/pkgs/container/llmsnap))
 
-Nightly container images with llmsnap and llama-server are built for multiple platforms (cuda, vulkan, intel, etc).
+Nightly container images with llmsnap and llama-server are built for multiple platforms (cuda, vulkan, intel, etc.) including [non-root variants with improved security](docs/container-security.md).
 
 ```shell
 $ docker pull ghcr.io/napmany/llmsnap:cuda
@@ -73,6 +74,14 @@ $ docker run -it --rm --runtime nvidia -p 9292:8080 \
  -v /path/to/models:/models \
  -v /path/to/custom/config.yaml:/app/config.yaml \
  ghcr.io/napmany/llmsnap:cuda
+
+# configuration hot reload supported with a
+# directory volume mount
+$ docker run -it --rm --runtime nvidia -p 9292:8080 \
+ -v /path/to/models:/models \
+ -v /path/to/custom/config.yaml:/app/config.yaml \
+ -v /path/to/config:/config \
+ ghcr.io/napmany/llmsnap:cuda -config /config/config.yaml -watch-config
 ```
 
 <details>
@@ -89,7 +98,10 @@ docker pull ghcr.io/napmany/llmsnap:intel
 docker pull ghcr.io/napmany/llmsnap:musa
 
 # tagged llmsnap, platform and llama-server version images
-docker pull ghcr.io/napmany/llmsnap:v166-cuda-b6795
+docker pull ghcr.io/napmany/llmsnap:v0.0.1-cuda-b7342
+
+# non-root cuda
+docker pull ghcr.io/napmany/llmsnap:cuda-non-root
 
 ```
 

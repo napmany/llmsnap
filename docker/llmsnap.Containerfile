@@ -1,8 +1,10 @@
+ARG BASE_IMAGE=ghcr.io/ggml-org/llama.cpp
 ARG BASE_TAG=server-cuda
-FROM ghcr.io/ggml-org/llama.cpp:${BASE_TAG}
+FROM ${BASE_IMAGE}:${BASE_TAG}
 
 # has to be after the FROM
-ARG LS_VER=170
+ARG LS_VER=0.0.1
+ARG LS_REPO=napmany/llmsnap
 
 # Set default UID/GID arguments
 ARG UID=10001
@@ -27,10 +29,14 @@ RUN chown --recursive $UID:$GID $HOME /app
 USER $UID:$GID
 
 WORKDIR /app
+
+# Add /app to PATH
+ENV PATH="/app:${PATH}"
+
 RUN \
-    curl -LO https://github.com/napmany/llmsnap/releases/download/v"${LS_VER}"/llmsnap_"${LS_VER}"_linux_amd64.tar.gz && \
-    tar -zxf llmsnap_"${LS_VER}"_linux_amd64.tar.gz && \
-    rm llmsnap_"${LS_VER}"_linux_amd64.tar.gz
+    curl -LO "https://github.com/${LS_REPO}/releases/download/v${LS_VER}/llmsnap_${LS_VER}_linux_amd64.tar.gz" && \
+    tar -zxf "llmsnap_${LS_VER}_linux_amd64.tar.gz" && \
+    rm "llmsnap_${LS_VER}_linux_amd64.tar.gz"
 
 COPY --chown=$UID:$GID config.example.yaml /app/config.yaml
 
