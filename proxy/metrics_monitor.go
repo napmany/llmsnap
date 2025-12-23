@@ -128,12 +128,11 @@ func (mp *metricsMonitor) wrapHandler(
 			usage := parsed.Get("usage")
 			timings := parsed.Get("timings")
 
-			if usage.Exists() || timings.Exists() {
-				if tm, err := parseMetrics(modelID, recorder.RequestTime(), usage, timings); err != nil {
-					mp.logger.Warnf("error parsing metrics: %v, path=%s", err, request.URL.Path)
-				} else {
-					mp.addMetrics(tm)
-				}
+			// Track metrics even if usage/timings are missing (graceful degradation)
+			if tm, err := parseMetrics(modelID, recorder.RequestTime(), usage, timings); err != nil {
+				mp.logger.Warnf("error parsing metrics: %v, path=%s", err, request.URL.Path)
+			} else {
+				mp.addMetrics(tm)
 			}
 
 		} else {
@@ -150,6 +149,7 @@ func processStreamingResponse(modelID string, start time.Time, body []byte) (Tok
 
 	// Start from the end of the body and scan backwards for newlines
 	pos := len(body)
+	foundValidJSON := false
 	for pos > 0 {
 		// Find the previous newline (or start of body)
 		lineStart := bytes.LastIndexByte(body[:pos], '\n')
@@ -183,6 +183,7 @@ func processStreamingResponse(modelID string, start time.Time, body []byte) (Tok
 		}
 
 		if gjson.ValidBytes(data) {
+			foundValidJSON = true
 			parsed := gjson.ParseBytes(data)
 			usage := parsed.Get("usage")
 			timings := parsed.Get("timings")
@@ -191,6 +192,11 @@ func processStreamingResponse(modelID string, start time.Time, body []byte) (Tok
 				return parseMetrics(modelID, start, usage, timings)
 			}
 		}
+	}
+
+	// If we found valid JSON but no usage/timings, still track the activity with unknown values
+	if foundValidJSON {
+		return parseMetrics(modelID, start, gjson.Result{}, gjson.Result{})
 	}
 
 	return TokenMetrics{}, fmt.Errorf("no valid JSON data found in stream")
