@@ -612,6 +612,9 @@ func (p *Process) stopCommand() {
 	stopStartTime := time.Now()
 	defer func() {
 		p.proxyLogger.Debugf("<%s> stopCommand took %v", p.ID, time.Since(stopStartTime))
+
+		// free the buffer in processLogger so the memory can be recovered
+		p.processLogger.Clear()
 	}()
 
 	p.cmdMutex.RLock()
@@ -888,6 +891,11 @@ func (p *Process) cmdStopUpstreamProcess() error {
 	return nil
 }
 
+// Logger returns the logger for this process.
+func (p *Process) Logger() *LogMonitor {
+	return p.processLogger
+}
+
 var loadingRemarks = []string{
 	"Still faster than your last standup meeting...",
 	"Reticulating splines...",
@@ -1106,7 +1114,6 @@ func (s *statusResponseWriter) WriteHeader(statusCode int) {
 	s.Flush()
 }
 
-// Add Flush method
 func (s *statusResponseWriter) Flush() {
 	if flusher, ok := s.writer.(http.Flusher); ok {
 		flusher.Flush()

@@ -52,17 +52,37 @@ type ProxyManager struct {
 	version   string
 }
 
-func New(config config.Config) *ProxyManager {
+func New(proxyConfig config.Config) *ProxyManager {
 	// set up loggers
-	stdoutLogger := NewLogMonitorWriter(os.Stdout)
-	upstreamLogger := NewLogMonitorWriter(stdoutLogger)
-	proxyLogger := NewLogMonitorWriter(stdoutLogger)
 
-	if config.LogRequests {
+	var muxLogger, upstreamLogger, proxyLogger *LogMonitor
+	switch proxyConfig.LogToStdout {
+	case config.LogToStdoutNone:
+		muxLogger = NewLogMonitorWriter(io.Discard)
+		upstreamLogger = NewLogMonitorWriter(io.Discard)
+		proxyLogger = NewLogMonitorWriter(io.Discard)
+	case config.LogToStdoutBoth:
+		muxLogger = NewLogMonitorWriter(os.Stdout)
+		upstreamLogger = NewLogMonitorWriter(muxLogger)
+		proxyLogger = NewLogMonitorWriter(muxLogger)
+	case config.LogToStdoutUpstream:
+		muxLogger = NewLogMonitorWriter(os.Stdout)
+		upstreamLogger = NewLogMonitorWriter(muxLogger)
+		proxyLogger = NewLogMonitorWriter(io.Discard)
+	default:
+		// same as config.LogToStdoutProxy
+		// helpful because some old tests create a config.Config directly and it
+		// may not have LogToStdout set explicitly
+		muxLogger = NewLogMonitorWriter(os.Stdout)
+		upstreamLogger = NewLogMonitorWriter(io.Discard)
+		proxyLogger = NewLogMonitorWriter(muxLogger)
+	}
+
+	if proxyConfig.LogRequests {
 		proxyLogger.Warn("LogRequests configuration is deprecated. Use logLevel instead.")
 	}
 
-	switch strings.ToLower(strings.TrimSpace(config.LogLevel)) {
+	switch strings.ToLower(strings.TrimSpace(proxyConfig.LogLevel)) {
 	case "debug":
 		proxyLogger.SetLogLevel(LevelDebug)
 		upstreamLogger.SetLogLevel(LevelDebug)
@@ -99,7 +119,7 @@ func New(config config.Config) *ProxyManager {
 		"stampnano":   time.StampNano,
 	}
 
-	if timeFormat, ok := timeFormats[strings.ToLower(strings.TrimSpace(config.LogTimeFormat))]; ok {
+	if timeFormat, ok := timeFormats[strings.ToLower(strings.TrimSpace(proxyConfig.LogTimeFormat))]; ok {
 		proxyLogger.SetLogTimeFormat(timeFormat)
 		upstreamLogger.SetLogTimeFormat(timeFormat)
 	}
@@ -107,18 +127,18 @@ func New(config config.Config) *ProxyManager {
 	shutdownCtx, shutdownCancel := context.WithCancel(context.Background())
 
 	var maxMetrics int
-	if config.MetricsMaxInMemory <= 0 {
+	if proxyConfig.MetricsMaxInMemory <= 0 {
 		maxMetrics = 1000 // Default fallback
 	} else {
-		maxMetrics = config.MetricsMaxInMemory
+		maxMetrics = proxyConfig.MetricsMaxInMemory
 	}
 
 	pm := &ProxyManager{
-		config:    config,
+		config:    proxyConfig,
 		ginEngine: gin.New(),
 
 		proxyLogger:    proxyLogger,
-		muxLogger:      stdoutLogger,
+		muxLogger:      muxLogger,
 		upstreamLogger: upstreamLogger,
 
 		metricsMonitor: newMetricsMonitor(proxyLogger, maxMetrics),
@@ -134,19 +154,19 @@ func New(config config.Config) *ProxyManager {
 	}
 
 	// create the process groups
-	for groupID := range config.Groups {
-		processGroup := NewProcessGroup(groupID, config, proxyLogger, upstreamLogger)
+	for groupID := range proxyConfig.Groups {
+		processGroup := NewProcessGroup(groupID, proxyConfig, proxyLogger, upstreamLogger)
 		pm.processGroups[groupID] = processGroup
 	}
 
 	pm.setupGinEngine()
 
 	// run any startup hooks
-	if len(config.Hooks.OnStartup.Preload) > 0 {
+	if len(proxyConfig.Hooks.OnStartup.Preload) > 0 {
 		// do it in the background, don't block startup -- not sure if good idea yet
 		go func() {
 			discardWriter := &DiscardWriter{}
-			for _, realModelName := range config.Hooks.OnStartup.Preload {
+			for _, realModelName := range proxyConfig.Hooks.OnStartup.Preload {
 				proxyLogger.Infof("Preloading model: %s", realModelName)
 				processGroup, _, err := pm.swapProcessGroup(realModelName)
 
@@ -266,7 +286,7 @@ func (pm *ProxyManager) setupGinEngine() {
 	// in proxymanager_loghandlers.go
 	pm.ginEngine.GET("/logs", pm.sendLogsHandlers)
 	pm.ginEngine.GET("/logs/stream", pm.streamLogsHandler)
-	pm.ginEngine.GET("/logs/stream/:logMonitorID", pm.streamLogsHandler)
+	pm.ginEngine.GET("/logs/stream/*logMonitorID", pm.streamLogsHandler)
 
 	/**
 	 * User Interface Endpoints
@@ -466,58 +486,58 @@ func (pm *ProxyManager) listModelsHandler(c *gin.Context) {
 	})
 }
 
-func (pm *ProxyManager) proxyToUpstream(c *gin.Context) {
-	upstreamPath := c.Param("upstreamPath")
-
-	// split the upstream path by / and search for the model name
-	parts := strings.Split(strings.TrimSpace(upstreamPath), "/")
-	if len(parts) == 0 {
-		pm.sendErrorResponse(c, http.StatusBadRequest, "model id required in path")
-		return
-	}
-
-	modelFound := false
+// findModelInPath searches for a valid model name in a path with slashes.
+// It iteratively builds up path segments until it finds a matching model.
+// Returns: (searchModelName, realModelName, remainingPath, found)
+// Example: "/author/model/endpoint" with model "author/model" -> ("author/model", "author/model", "/endpoint", true)
+func (pm *ProxyManager) findModelInPath(path string) (searchName string, realName string, remainingPath string, found bool) {
+	parts := strings.Split(strings.TrimSpace(path), "/")
 	searchModelName := ""
-	var modelName, remainingPath string
+
 	for i, part := range parts {
-		if parts[i] == "" {
+		if part == "" {
 			continue
 		}
 
 		if searchModelName == "" {
 			searchModelName = part
 		} else {
-			searchModelName = searchModelName + "/" + parts[i]
+			searchModelName = searchModelName + "/" + part
 		}
 
 		if real, ok := pm.config.RealModelName(searchModelName); ok {
-			modelName = real
-			remainingPath = "/" + strings.Join(parts[i+1:], "/")
-			modelFound = true
-
-			// Check if this is exactly a model name with no additional path
-			// and doesn't end with a trailing slash
-			if remainingPath == "/" && !strings.HasSuffix(upstreamPath, "/") {
-				// Build new URL with query parameters preserved
-				newPath := "/upstream/" + searchModelName + "/"
-				if c.Request.URL.RawQuery != "" {
-					newPath += "?" + c.Request.URL.RawQuery
-				}
-
-				// Use 308 for non-GET/HEAD requests to preserve method
-				if c.Request.Method == http.MethodGet || c.Request.Method == http.MethodHead {
-					c.Redirect(http.StatusMovedPermanently, newPath)
-				} else {
-					c.Redirect(http.StatusPermanentRedirect, newPath)
-				}
-				return
-			}
-			break
+			return searchModelName, real, "/" + strings.Join(parts[i+1:], "/"), true
 		}
 	}
 
+	return "", "", "", false
+}
+
+func (pm *ProxyManager) proxyToUpstream(c *gin.Context) {
+	upstreamPath := c.Param("upstreamPath")
+
+	searchModelName, modelName, remainingPath, modelFound := pm.findModelInPath(upstreamPath)
+
 	if !modelFound {
 		pm.sendErrorResponse(c, http.StatusBadRequest, "model id required in path")
+		return
+	}
+
+	// Check if this is exactly a model name with no additional path
+	// and doesn't end with a trailing slash
+	if remainingPath == "/" && !strings.HasSuffix(upstreamPath, "/") {
+		// Build new URL with query parameters preserved
+		newPath := "/upstream/" + searchModelName + "/"
+		if c.Request.URL.RawQuery != "" {
+			newPath += "?" + c.Request.URL.RawQuery
+		}
+
+		// Use 308 for non-GET/HEAD requests to preserve method
+		if c.Request.Method == http.MethodGet || c.Request.Method == http.MethodHead {
+			c.Redirect(http.StatusMovedPermanently, newPath)
+		} else {
+			c.Redirect(http.StatusPermanentRedirect, newPath)
+		}
 		return
 	}
 
