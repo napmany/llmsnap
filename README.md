@@ -199,10 +199,10 @@ $ curl http://host/logs
 # streams combined logs
 curl -Ns http://host/logs/stream
 
-# stream llama-swap's proxy status logs
+# stream llmsnap's proxy status logs
 curl -Ns http://host/logs/stream/proxy
 
-# stream logs from upstream processes that llama-swap loads
+# stream logs from upstream processes that llmsnap loads
 curl -Ns http://host/logs/stream/upstream
 
 # stream logs only from a specific model
