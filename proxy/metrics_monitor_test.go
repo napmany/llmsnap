@@ -350,7 +350,7 @@ data: [DONE]
 		assert.Equal(t, 0, len(metrics))
 	})
 
-	t.Run("response without usage or timings does not record metrics", func(t *testing.T) {
+	t.Run("response without usage or timings records metrics with unknown values", func(t *testing.T) {
 		mm := newMetricsMonitor(testLogger, 10)
 
 		responseBody := `{"result": "ok"}`
@@ -369,8 +369,13 @@ data: [DONE]
 		err := mm.wrapHandler("test-model", ginCtx.Writer, req, nextHandler)
 		assert.NoError(t, err) // Errors after response is sent are logged, not returned
 
+		// With graceful degradation, should track the request even without usage data
 		metrics := mm.getMetrics()
-		assert.Equal(t, 0, len(metrics))
+		assert.Equal(t, 1, len(metrics))
+		assert.Equal(t, "test-model", metrics[0].Model)
+		assert.Equal(t, 0, metrics[0].InputTokens)
+		assert.Equal(t, 0, metrics[0].OutputTokens)
+		assert.Equal(t, -1, metrics[0].CachedTokens)
 	})
 }
 
@@ -814,6 +819,76 @@ data: [DONE]
 
 		metrics := mm.getMetrics()
 		assert.Equal(t, 0, len(metrics))
+	})
+
+	t.Run("gracefully handles streaming response without usage data", func(t *testing.T) {
+		mm := newMetricsMonitor(testLogger, 10)
+
+		// vLLM streaming response without stream_options - no usage data
+		responseBody := `data: {"choices":[{"text":"Hello"}]}
+
+data: {"choices":[{"text":" world"}]}
+
+data: [DONE]
+
+`
+
+		nextHandler := func(modelID string, w http.ResponseWriter, r *http.Request) error {
+			w.Header().Set("Content-Type", "text/event-stream")
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(responseBody))
+			return nil
+		}
+
+		req := httptest.NewRequest("POST", "/test", nil)
+		rec := httptest.NewRecorder()
+		ginCtx, _ := gin.CreateTestContext(rec)
+
+		err := mm.wrapHandler("test-model", ginCtx.Writer, req, nextHandler)
+		assert.NoError(t, err)
+
+		// Should track the request even without usage data
+		metrics := mm.getMetrics()
+		assert.Equal(t, 1, len(metrics))
+		assert.Equal(t, "test-model", metrics[0].Model)
+		// Unknown values should be 0 or -1
+		assert.Equal(t, 0, metrics[0].InputTokens)
+		assert.Equal(t, 0, metrics[0].OutputTokens)
+		assert.Equal(t, -1, metrics[0].CachedTokens)
+		assert.Equal(t, -1.0, metrics[0].PromptPerSecond)
+		assert.Equal(t, -1.0, metrics[0].TokensPerSecond)
+	})
+
+	t.Run("gracefully handles non-streaming response without usage data", func(t *testing.T) {
+		mm := newMetricsMonitor(testLogger, 10)
+
+		// Valid JSON response but no usage or timings fields
+		responseBody := `{"choices":[{"text":"Hello world"}],"model":"test-model"}`
+
+		nextHandler := func(modelID string, w http.ResponseWriter, r *http.Request) error {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(responseBody))
+			return nil
+		}
+
+		req := httptest.NewRequest("POST", "/test", nil)
+		rec := httptest.NewRecorder()
+		ginCtx, _ := gin.CreateTestContext(rec)
+
+		err := mm.wrapHandler("test-model", ginCtx.Writer, req, nextHandler)
+		assert.NoError(t, err)
+
+		// Should track the request even without usage data
+		metrics := mm.getMetrics()
+		assert.Equal(t, 1, len(metrics))
+		assert.Equal(t, "test-model", metrics[0].Model)
+		// Unknown values should be 0 or -1
+		assert.Equal(t, 0, metrics[0].InputTokens)
+		assert.Equal(t, 0, metrics[0].OutputTokens)
+		assert.Equal(t, -1, metrics[0].CachedTokens)
+		assert.Equal(t, -1.0, metrics[0].PromptPerSecond)
+		assert.Equal(t, -1.0, metrics[0].TokensPerSecond)
 	})
 }
 
