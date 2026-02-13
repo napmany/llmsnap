@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mostlygeek/llama-swap/proxy/config"
+	"github.com/napmany/llmsnap/proxy/config"
 )
 
 type peerProxyMember struct {

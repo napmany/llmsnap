@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
+	"strings"
 )
 
 // HTTPEndpoint represents a single HTTP endpoint configuration

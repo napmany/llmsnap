@@ -360,7 +360,7 @@ data: [DONE]
 	})
 
 	t.Run("response without usage or timings does not record metrics", func(t *testing.T) {
-		mm := newMetricsMonitor(testLogger, 10)
+		mm := newMetricsMonitor(testLogger, 10, 0)
 
 		responseBody := `{"result": "ok"}`
 
@@ -380,7 +380,7 @@ data: [DONE]
 
 		// With graceful degradation, should track the request even without usage data
 		metrics := mm.getMetrics()
-		assert.Equal(t, 0, len(metrics))
+		assert.Equal(t, 1, len(metrics))
 	})
 }
 
@@ -582,7 +582,7 @@ func TestMetricsMonitor_ParseMetrics(t *testing.T) {
 	})
 
 	t.Run("calculates TokensPerSecond when timings absent", func(t *testing.T) {
-		mm := newMetricsMonitor(testLogger, 10)
+		mm := newMetricsMonitor(testLogger, 10, 0)
 
 		// vLLM-style response: only usage, no timings
 		responseBody := `{
@@ -622,7 +622,7 @@ func TestMetricsMonitor_ParseMetrics(t *testing.T) {
 	})
 
 	t.Run("prefers backend timings over calculation", func(t *testing.T) {
-		mm := newMetricsMonitor(testLogger, 10)
+		mm := newMetricsMonitor(testLogger, 10, 0)
 
 		// Response with both usage and timings
 		// Timings should be used even if they differ from calculated values
@@ -666,7 +666,7 @@ func TestMetricsMonitor_ParseMetrics(t *testing.T) {
 	})
 
 	t.Run("handles zero output tokens", func(t *testing.T) {
-		mm := newMetricsMonitor(testLogger, 10)
+		mm := newMetricsMonitor(testLogger, 10, 0)
 
 		// Response with no completion tokens
 		responseBody := `{
@@ -700,7 +700,7 @@ func TestMetricsMonitor_ParseMetrics(t *testing.T) {
 	})
 
 	t.Run("handles very fast responses", func(t *testing.T) {
-		mm := newMetricsMonitor(testLogger, 10)
+		mm := newMetricsMonitor(testLogger, 10, 0)
 
 		// Response that completes very quickly (< 1ms)
 		responseBody := `{
@@ -832,7 +832,7 @@ data: [DONE]
 	})
 
 	t.Run("gracefully handles streaming response without usage data", func(t *testing.T) {
-		mm := newMetricsMonitor(testLogger, 10)
+		mm := newMetricsMonitor(testLogger, 10, 0)
 
 		// vLLM streaming response without stream_options - no usage data
 		responseBody := `data: {"choices":[{"text":"Hello"}]}
@@ -870,7 +870,7 @@ data: [DONE]
 	})
 
 	t.Run("gracefully handles non-streaming response without usage data", func(t *testing.T) {
-		mm := newMetricsMonitor(testLogger, 10)
+		mm := newMetricsMonitor(testLogger, 10, 0)
 
 		// Valid JSON response but no usage or timings fields
 		responseBody := `{"choices":[{"text":"Hello world"}],"model":"test-model"}`
