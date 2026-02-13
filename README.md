@@ -13,16 +13,21 @@ Built in Go for performance and simplicity, llmsnap has zero dependencies and is
 
 - ✅ Easy to deploy and configure: one binary, one configuration file. no external dependencies
 - ✅ On-demand model switching
-- ✅ Use any local OpenAI compatible server (llama.cpp, vllm, tabbyAPI, etc.)
+- ✅ Use any local OpenAI compatible server (llama.cpp, vllm, tabbyAPI, stable-diffusion.cpp, etc.)
   - future proof, upgrade your inference servers at any time.
 - ✅ OpenAI API supported endpoints:
   - `v1/completions`
   - `v1/chat/completions`
+  - `v1/responses`
   - `v1/embeddings`
   - `v1/audio/speech` ([#36](https://github.com/mostlygeek/llama-swap/issues/36))
   - `v1/audio/transcriptions` ([docs](https://github.com/mostlygeek/llama-swap/issues/41#issuecomment-2722637867))
+  - `v1/audio/voices`
+  - `v1/images/generations`
+  - `v1/images/edits`
 - ✅ Anthropic API supported endpoints:
   - `v1/messages`
+  - `v1/messages/count_tokens`
 - ✅ llama-server (llama.cpp) supported endpoints
   - `v1/rerank`, `v1/reranking`, `/rerank`
   - `/infill` - for code infilling
@@ -35,6 +40,7 @@ Built in Go for performance and simplicity, llmsnap has zero dependencies and is
   - `/running` - list currently running models ([#61](https://github.com/mostlygeek/llama-swap/issues/61))
   - `/log` - remote log monitoring
   - `/health` - just returns "OK"
+- ✅ API Key support - define keys to restrict access to API endpoints
 - ✅ Customizable
   - Run multiple models at once with `Groups` ([#107](https://github.com/mostlygeek/llama-swap/issues/107))
   - Automatic unloading of models after timeout by setting a `ttl`
@@ -65,6 +71,7 @@ llmsnap can be installed in multiple ways
 ### Docker Install ([download images](https://github.com/napmany/llmsnap/pkgs/container/llmsnap))
 
 Nightly container images with llmsnap and llama-server are built for multiple platforms (cuda, vulkan, intel, etc.) including [non-root variants with improved security](docs/container-security.md).
+The stable-diffusion.cpp server is also included for the musa and vulkan platforms.
 
 ```shell
 $ docker pull ghcr.io/napmany/llmsnap:cuda
