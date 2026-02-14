@@ -159,6 +159,20 @@ export async function unloadSingleModel(model: string): Promise<void> {
   }
 }
 
+export async function sleepModel(model: string): Promise<void> {
+  try {
+    const response = await fetch(`/api/models/sleep/${model}`, {
+      method: "POST",
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to sleep model: ${response.status}`);
+    }
+  } catch (error) {
+    console.error("Failed to sleep model", model, error);
+    throw error;
+  }
+}
+
 export async function loadModel(model: string): Promise<void> {
   try {
     const response = await fetch(`/upstream/${model}/`, {

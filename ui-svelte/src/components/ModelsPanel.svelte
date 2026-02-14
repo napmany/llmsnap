@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { models, loadModel, unloadAllModels, unloadSingleModel } from "../stores/api";
+  import { models, loadModel, unloadAllModels, unloadSingleModel, sleepModel } from "../stores/api";
   import { isNarrow } from "../stores/theme";
   import { persistentStore } from "../stores/persistent";
   import type { Model } from "../lib/types";
@@ -166,15 +166,23 @@
                 <p class={model.unlisted ? "text-opacity-70" : ""}><em>{model.description}</em></p>
               {/if}
             </td>
-            <td class="w-12">
+            <td class="w-40">
               {#if model.state === "stopped"}
                 <button class="btn btn--sm" onclick={() => loadModel(model.id)}>Load</button>
+              {:else if model.state === "asleep"}
+                <button class="btn btn--sm" onclick={() => loadModel(model.id)}>Wake</button>
+                <button class="btn btn--sm" onclick={() => unloadSingleModel(model.id)}>Unload</button>
+              {:else if model.state === "ready" && model.sleepMode === "enable"}
+                <button class="btn btn--sm" onclick={() => sleepModel(model.id)}>Sleep</button>
+                <button class="btn btn--sm" onclick={() => unloadSingleModel(model.id)}>Unload</button>
+              {:else if model.state === "ready"}
+                <button class="btn btn--sm" onclick={() => unloadSingleModel(model.id)}>Unload</button>
               {:else}
-                <button class="btn btn--sm" onclick={() => unloadSingleModel(model.id)} disabled={model.state !== "ready"}>Unload</button>
+                <button class="btn btn--sm" disabled>{model.state}</button>
               {/if}
             </td>
-            <td class="w-20">
-              <span class="w-16 text-center status status--{model.state}">{model.state}</span>
+            <td class="w-32">
+              <span class="status-badge text-center status status--{model.state}">{model.state}</span>
             </td>
           </tr>
         {/each}
