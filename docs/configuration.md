@@ -87,7 +87,7 @@ llmsnap supports many more features to customize how you want to manage your env
 ## Full Configuration Example
 
 > [!NOTE]
-> Always check [config.example.yaml](https://github.com/mostlygeek/llama-swap/blob/main/config.example.yaml) for the most up to date reference for all example configurations.
+> Always check [config.example.yaml](https://github.com/napmany/llmsnap/blob/main/config.example.yaml) for the most up to date reference for all example configurations.
 
 ```yaml
 # add this modeline for validation in vscode
@@ -176,7 +176,7 @@ includeAliasesInList: false
 
 # apiKeys: require an API key when making requests to inference endpoints
 # - optional, default: []
-# - when empty (the default) authorization will not be checked as llama-swap is default-allow
+# - when empty (the default) authorization will not be checked as llmsnap is default-allow
 # - each key is a non-empty string
 apiKeys:
   - "sk-hunter2"
@@ -535,14 +535,14 @@ hooks:
 
 # peers: a dictionary of remote peers and models they provide
 # - optional, default empty dictionary
-# - peers can be another llama-swap
-# - peers can be any server that provides the /v1/ generative api endpoints supported by llama-swap
+# - peers can be another llmsnap
+# - peers can be any server that provides the /v1/ generative api endpoints supported by llmsnap
 peers:
   # keys is the peer'd ID
-  llama-swap-peer:
+  llmsnap-peer:
     # proxy: a valid base URL to proxy requests to
     # - required
-    # - requested path to llama-swap will be appended to the end of the proxy value
+    # - requested path to llmsnap will be appended to the end of the proxy value
     proxy: http://192.168.1.23
     # models: a list of models served by the peer
     # - required

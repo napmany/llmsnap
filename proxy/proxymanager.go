@@ -963,7 +963,7 @@ func (pm *ProxyManager) apiKeyAuth() gin.HandlerFunc {
 		}
 
 		if !valid {
-			c.Header("WWW-Authenticate", `Basic realm="llama-swap"`)
+			c.Header("WWW-Authenticate", `Basic realm="llmsnap"`)
 			pm.sendErrorResponse(c, http.StatusUnauthorized, "unauthorized: invalid or missing API key")
 			c.Abort()
 			return

@@ -150,7 +150,7 @@ for CONTAINER_TYPE in non-root root; do
   case "$ARCH" in
     "musa" | "vulkan")
       log_info "Adding sd-server to $CONTAINER_TAG"
-      docker build -f llama-swap-sd.Containerfile \
+      docker build -f llmsnap-sd.Containerfile \
         --build-arg BASE=${CONTAINER_TAG} \
         --build-arg SD_IMAGE=${SD_IMAGE} --build-arg SD_TAG=${SD_TAG} \
         --build-arg UID=${USER_UID} --build-arg GID=${USER_GID} \

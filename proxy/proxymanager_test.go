@@ -1366,7 +1366,7 @@ func TestProxyManager_APIKeyAuth(t *testing.T) {
 
 		proxy.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusUnauthorized, w.Code)
-		assert.Equal(t, `Basic realm="llama-swap"`, w.Header().Get("WWW-Authenticate"))
+		assert.Equal(t, `Basic realm="llmsnap"`, w.Header().Get("WWW-Authenticate"))
 	})
 }
 
