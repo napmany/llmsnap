@@ -117,3 +117,140 @@ func TestProcessGroup_ProxyRequestSwapIsFalse(t *testing.T) {
 		assert.Equal(t, StateReady, process.CurrentState())
 	}
 }
+
+func TestProcessGroup_MakeIdleProcesses(t *testing.T) {
+	t.Run("sleep-enabled processes are put to sleep", func(t *testing.T) {
+		cfg1 := getTestSimpleResponderConfig("idle1")
+		cfg1.SleepMode = config.SleepModeEnable
+		cfg1.SleepEndpoints = []config.HTTPEndpoint{
+			{Endpoint: "/sleep", Method: "POST", Timeout: 5},
+		}
+		cfg1.WakeEndpoints = []config.HTTPEndpoint{
+			{Endpoint: "/wake_up", Method: "POST", Timeout: 5},
+		}
+
+		cfg2 := getTestSimpleResponderConfig("idle2")
+		cfg2.SleepMode = config.SleepModeEnable
+		cfg2.SleepEndpoints = []config.HTTPEndpoint{
+			{Endpoint: "/sleep", Method: "POST", Timeout: 5},
+		}
+		cfg2.WakeEndpoints = []config.HTTPEndpoint{
+			{Endpoint: "/wake_up", Method: "POST", Timeout: 5},
+		}
+
+		testConfig := config.AddDefaultGroupToConfig(config.Config{
+			HealthCheckTimeout: 15,
+			Models: map[string]config.ModelConfig{
+				"idle1": cfg1,
+				"idle2": cfg2,
+			},
+			Groups: map[string]config.GroupConfig{
+				"G1": {
+					Swap:    true,
+					Members: []string{"idle1", "idle2"},
+				},
+			},
+		})
+
+		pg := NewProcessGroup("G1", testConfig, testLogger, testLogger)
+		defer pg.StopProcesses(StopImmediately)
+
+		// Start all processes
+		for _, p := range pg.processes {
+			assert.NoError(t, p.start())
+			assert.Equal(t, StateReady, p.CurrentState())
+		}
+
+		pg.MakeIdleProcesses()
+
+		for _, p := range pg.processes {
+			assert.Equal(t, StateAsleep, p.CurrentState())
+		}
+	})
+
+	t.Run("non-sleep processes are stopped", func(t *testing.T) {
+		testConfig := config.AddDefaultGroupToConfig(config.Config{
+			HealthCheckTimeout: 15,
+			Models: map[string]config.ModelConfig{
+				"nosleep1": getTestSimpleResponderConfig("nosleep1"),
+				"nosleep2": getTestSimpleResponderConfig("nosleep2"),
+			},
+			Groups: map[string]config.GroupConfig{
+				"G1": {
+					Swap:    true,
+					Members: []string{"nosleep1", "nosleep2"},
+				},
+			},
+		})
+
+		pg := NewProcessGroup("G1", testConfig, testLogger, testLogger)
+
+		// Start all processes
+		for _, p := range pg.processes {
+			assert.NoError(t, p.start())
+			assert.Equal(t, StateReady, p.CurrentState())
+		}
+
+		pg.MakeIdleProcesses()
+
+		for _, p := range pg.processes {
+			assert.Equal(t, StateStopped, p.CurrentState())
+		}
+	})
+
+	t.Run("mixed processes", func(t *testing.T) {
+		sleepCfg := getTestSimpleResponderConfig("mixed_sleep")
+		sleepCfg.SleepMode = config.SleepModeEnable
+		sleepCfg.SleepEndpoints = []config.HTTPEndpoint{
+			{Endpoint: "/sleep", Method: "POST", Timeout: 5},
+		}
+		sleepCfg.WakeEndpoints = []config.HTTPEndpoint{
+			{Endpoint: "/wake_up", Method: "POST", Timeout: 5},
+		}
+
+		testConfig := config.AddDefaultGroupToConfig(config.Config{
+			HealthCheckTimeout: 15,
+			Models: map[string]config.ModelConfig{
+				"mixed_sleep":   sleepCfg,
+				"mixed_nosleep": getTestSimpleResponderConfig("mixed_nosleep"),
+			},
+			Groups: map[string]config.GroupConfig{
+				"G1": {
+					Swap:    true,
+					Members: []string{"mixed_sleep", "mixed_nosleep"},
+				},
+			},
+		})
+
+		pg := NewProcessGroup("G1", testConfig, testLogger, testLogger)
+		defer pg.StopProcesses(StopImmediately)
+
+		// Start all processes
+		for _, p := range pg.processes {
+			assert.NoError(t, p.start())
+			assert.Equal(t, StateReady, p.CurrentState())
+		}
+
+		pg.MakeIdleProcesses()
+
+		assert.Equal(t, StateAsleep, pg.processes["mixed_sleep"].CurrentState())
+		assert.Equal(t, StateStopped, pg.processes["mixed_nosleep"].CurrentState())
+	})
+
+	t.Run("empty group", func(t *testing.T) {
+		testConfig := config.AddDefaultGroupToConfig(config.Config{
+			HealthCheckTimeout: 15,
+			Models:             map[string]config.ModelConfig{},
+			Groups: map[string]config.GroupConfig{
+				"G1": {
+					Swap:    true,
+					Members: []string{},
+				},
+			},
+		})
+
+		pg := NewProcessGroup("G1", testConfig, testLogger, testLogger)
+		// Should not panic
+		pg.MakeIdleProcesses()
+	})
+}
