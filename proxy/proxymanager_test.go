@@ -165,8 +165,8 @@ func TestProxyManager_ExclusiveSwapSleepsOtherGroups(t *testing.T) {
 	cfg := config.AddDefaultGroupToConfig(config.Config{
 		HealthCheckTimeout: 15,
 		Models: map[string]config.ModelConfig{
-			"sleepmodel":   sleepCfg,
-			"normalmodel":  getTestSimpleResponderConfig("normalmodel"),
+			"sleepmodel":  sleepCfg,
+			"normalmodel": getTestSimpleResponderConfig("normalmodel"),
 		},
 		LogLevel: "error",
 		Groups: map[string]config.GroupConfig{
