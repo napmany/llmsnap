@@ -87,7 +87,7 @@ llmsnap supports many more features to customize how you want to manage your env
 ## Full Configuration Example
 
 > [!NOTE]
-> This is a copy of `config.example.yaml`. Always check that for the most up to date examples.
+> Always check [config.example.yaml](https://github.com/napmany/llmsnap/blob/main/config.example.yaml) for the most up to date reference for all example configurations.
 
 ```yaml
 # add this modeline for validation in vscode
@@ -173,6 +173,16 @@ sendLoadingState: true
 # - when true, model aliases will be output to the API model listing duplicating
 #   all fields except for Id so chat UIs can use the alias equivalent to the original.
 includeAliasesInList: false
+
+# apiKeys: require an API key when making requests to inference endpoints
+# - optional, default: []
+# - when empty (the default) authorization will not be checked as llmsnap is default-allow
+# - each key is a non-empty string
+apiKeys:
+  - "sk-hunter2"
+  # hint, one liner: printf "sk-%s\n" "$(head -c 48 /dev/urandom | base64 )"
+  - "sk-gyCPiKUcIfPlaM4OSMZekkprgijPx6+OsmQs8Rsg0xZ9qpy6gKWsIKqHOk+cgXVx"
+  - "sk-+QtIn0Zjj4UHjiaZYiZEnru4mrwKM9RzhmJeK5SobNXLl8QMFXxGz1/2lEuvQpkb"
 
 # macros: a dictionary of string substitutions
 # - optional, default: empty dictionary
@@ -522,4 +532,36 @@ hooks:
     #   otherwise models will be loaded and swapped out
     preload:
       - "llama"
+
+# peers: a dictionary of remote peers and models they provide
+# - optional, default empty dictionary
+# - peers can be another llmsnap
+# - peers can be any server that provides the /v1/ generative api endpoints supported by llmsnap
+peers:
+  # keys is the peer'd ID
+  llmsnap-peer:
+    # proxy: a valid base URL to proxy requests to
+    # - required
+    # - requested path to llmsnap will be appended to the end of the proxy value
+    proxy: http://192.168.1.23
+    # models: a list of models served by the peer
+    # - required
+    models:
+      - model_a
+      - model_b
+      - embeddings/model_c
+  openrouter:
+    proxy: https://openrouter.ai/api
+    # apiKey: a string key to be injected into the request
+    # - optional, default: ""
+    # - if blank, no key will be added to the request
+    # - key will be injected into headers: Authorization: Bearer <key> and x-api-key: <key>
+    apiKey: sk-your-openrouter-key
+    models:
+      - meta-llama/llama-3.1-8b-instruct
+      - qwen/qwen3-235b-a22b-2507
+      - deepseek/deepseek-v3.2
+      - z-ai/glm-4.7
+      - moonshotai/kimi-k2-0905
+      - minimax/minimax-m2.1
 ```

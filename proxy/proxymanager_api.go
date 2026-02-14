@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -19,11 +20,13 @@ type Model struct {
 	State       string `json:"state"`
 	Unlisted    bool   `json:"unlisted"`
 	SleepMode   string `json:"sleepMode"`
+	PeerID      string `json:"peerID"`
 }
 
 func addApiHandlers(pm *ProxyManager) {
 	// Add API endpoints for React to consume
-	apiGroup := pm.ginEngine.Group("/api")
+	// Protected with API key authentication
+	apiGroup := pm.ginEngine.Group("/api", pm.apiKeyAuth())
 	{
 		apiGroup.POST("/models/unload", pm.apiUnloadAllModels)
 		apiGroup.POST("/models/unload/*model", pm.apiUnloadSingleModelHandler)
@@ -31,6 +34,7 @@ func addApiHandlers(pm *ProxyManager) {
 		apiGroup.GET("/events", pm.apiSendEvents)
 		apiGroup.GET("/metrics", pm.apiGetMetrics)
 		apiGroup.GET("/version", pm.apiGetVersion)
+		apiGroup.GET("/captures/:id", pm.apiGetCapture)
 	}
 }
 
@@ -89,6 +93,18 @@ func (pm *ProxyManager) getModelStatus() []Model {
 			Unlisted:    pm.config.Models[modelID].Unlisted,
 			SleepMode:   string(pm.config.Models[modelID].SleepMode),
 		})
+	}
+
+	// Iterate over the peer models
+	if pm.peerProxy != nil {
+		for peerID, peer := range pm.peerProxy.ListPeers() {
+			for _, modelID := range peer.Models {
+				models = append(models, Model{
+					Id:     modelID,
+					PeerID: peerID,
+				})
+			}
+		}
 	}
 
 	return models
@@ -266,4 +282,21 @@ func (pm *ProxyManager) apiGetVersion(c *gin.Context) {
 		"commit":     pm.commit,
 		"build_date": pm.buildDate,
 	})
+}
+
+func (pm *ProxyManager) apiGetCapture(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid capture ID"})
+		return
+	}
+
+	capture := pm.metricsMonitor.getCaptureByID(id)
+	if capture == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "capture not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, capture)
 }

@@ -10,16 +10,36 @@ on:
   # Allows manual triggering of the workflow
   workflow_dispatch:
 
+  # Run on workflow file changes (without pushing)
+  push:
+    paths:
+      - '.github/workflows/containers.yml'
+      - 'docker/build-container.sh'
+      - 'docker/*.Containerfile'
+
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        platform: [intel, cuda, vulkan, cpu, musa]
+        platform: [intel, cuda, vulkan, cpu, musa, rocm]
       fail-fast: false
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Free up disk space
+        if: matrix.platform == 'rocm'
+        run: |
+          echo "Before cleanup:"
+          df -h
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          sudo docker system prune -af
+          echo "After cleanup:"
+          df -h
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v2
@@ -31,7 +51,7 @@ jobs:
       - name: Run build-container
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: ./docker/build-container.sh ${{ matrix.platform }} true
+        run: ./docker/build-container.sh ${{ matrix.platform }} ${{ github.event_name != 'push' }}
 
   # note make sure napmany/llmsnap has admin rights to the llmsnap package
   # see: https://github.com/actions/delete-package-versions/issues/74

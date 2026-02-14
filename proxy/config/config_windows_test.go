@@ -210,6 +210,7 @@ groups:
 		SleepRequestTimeout: 10,
 		WakeRequestTimeout:  10,
 		MetricsMaxInMemory:  1000,
+		CaptureBuffer:       5,
 		Profiles: map[string][]string{
 			"test": {"model1", "model2"},
 		},
