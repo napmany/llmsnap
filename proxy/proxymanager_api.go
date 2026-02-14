@@ -107,18 +107,6 @@ func (pm *ProxyManager) getModelStatus() []Model {
 		}
 	}
 
-	// Iterate over the peer models
-	if pm.peerProxy != nil {
-		for peerID, peer := range pm.peerProxy.ListPeers() {
-			for _, modelID := range peer.Models {
-				models = append(models, Model{
-					Id:     modelID,
-					PeerID: peerID,
-				})
-			}
-		}
-	}
-
 	return models
 }
 

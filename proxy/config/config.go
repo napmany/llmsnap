@@ -318,16 +318,6 @@ func LoadConfigFromReader(r io.Reader) (Config, error) {
 				modelConfig.WakeEndpoints[j].Body = strings.ReplaceAll(modelConfig.WakeEndpoints[j].Body, macroSlug, macroStr)
 			}
 
-			// Substitute in sleep/wake endpoint arrays
-			for j := range modelConfig.SleepEndpoints {
-				modelConfig.SleepEndpoints[j].Endpoint = strings.ReplaceAll(modelConfig.SleepEndpoints[j].Endpoint, macroSlug, macroStr)
-				modelConfig.SleepEndpoints[j].Body = strings.ReplaceAll(modelConfig.SleepEndpoints[j].Body, macroSlug, macroStr)
-			}
-			for j := range modelConfig.WakeEndpoints {
-				modelConfig.WakeEndpoints[j].Endpoint = strings.ReplaceAll(modelConfig.WakeEndpoints[j].Endpoint, macroSlug, macroStr)
-				modelConfig.WakeEndpoints[j].Body = strings.ReplaceAll(modelConfig.WakeEndpoints[j].Body, macroSlug, macroStr)
-			}
-
 			// Substitute in metadata (type-preserving)
 			if len(modelConfig.Metadata) > 0 {
 				result, err := substituteMacroInValue(modelConfig.Metadata, entry.Name, entry.Value)
@@ -352,16 +342,6 @@ func LoadConfigFromReader(r io.Reader) (Config, error) {
 			modelConfig.Cmd = strings.ReplaceAll(modelConfig.Cmd, macroSlug, macroStr)
 			modelConfig.CmdStop = strings.ReplaceAll(modelConfig.CmdStop, macroSlug, macroStr)
 			modelConfig.Proxy = strings.ReplaceAll(modelConfig.Proxy, macroSlug, macroStr)
-
-			// Substitute PORT in sleep/wake endpoint arrays
-			for j := range modelConfig.SleepEndpoints {
-				modelConfig.SleepEndpoints[j].Endpoint = strings.ReplaceAll(modelConfig.SleepEndpoints[j].Endpoint, macroSlug, macroStr)
-				modelConfig.SleepEndpoints[j].Body = strings.ReplaceAll(modelConfig.SleepEndpoints[j].Body, macroSlug, macroStr)
-			}
-			for j := range modelConfig.WakeEndpoints {
-				modelConfig.WakeEndpoints[j].Endpoint = strings.ReplaceAll(modelConfig.WakeEndpoints[j].Endpoint, macroSlug, macroStr)
-				modelConfig.WakeEndpoints[j].Body = strings.ReplaceAll(modelConfig.WakeEndpoints[j].Body, macroSlug, macroStr)
-			}
 
 			// Substitute PORT in sleep/wake endpoint arrays
 			for j := range modelConfig.SleepEndpoints {
@@ -405,14 +385,6 @@ func LoadConfigFromReader(r io.Reader) (Config, error) {
 				}
 				return Config{}, fmt.Errorf("unknown macro '${%s}' found in %s.%s", macroName, modelId, fieldName)
 			}
-		}
-
-		// Check sleep/wake endpoint arrays for unknown macros
-		if err := validateEndpointMacros(modelConfig.SleepEndpoints, modelId, "sleepEndpoints"); err != nil {
-			return Config{}, err
-		}
-		if err := validateEndpointMacros(modelConfig.WakeEndpoints, modelId, "wakeEndpoints"); err != nil {
-			return Config{}, err
 		}
 
 		// Check sleep/wake endpoint arrays for unknown macros
