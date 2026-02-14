@@ -5,7 +5,7 @@
 ## Entry Point
 
 **`llama-swap.go`** - Main application
-- Parses CLI flags: `--config`, `--listen`, `--tls-cert`, `--tls-key`, `--watch-config`, `--version`
+- Parses CLI flags: `--config`, `--listen`, `--tls-cert-file`, `--tls-key-file`, `--watch-config`, `--version`
 - Loads config via `config.LoadConfig()`
 - Creates `ProxyManager` and starts HTTP server
 - Optional config file watcher (fsnotify) for hot-reload
