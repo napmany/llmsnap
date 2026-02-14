@@ -165,6 +165,25 @@ func (pg *ProcessGroup) StopProcesses(strategy StopStrategy) {
 	wg.Wait()
 }
 
+func (pg *ProcessGroup) MakeIdleProcesses() {
+	pg.Lock()
+	defer pg.Unlock()
+
+	if len(pg.processes) == 0 {
+		return
+	}
+
+	var wg sync.WaitGroup
+	for _, process := range pg.processes {
+		wg.Add(1)
+		go func(process *Process) {
+			defer wg.Done()
+			process.MakeIdle()
+		}(process)
+	}
+	wg.Wait()
+}
+
 func (pg *ProcessGroup) Shutdown() {
 	var wg sync.WaitGroup
 	for _, process := range pg.processes {

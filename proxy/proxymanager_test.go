@@ -150,6 +150,65 @@ func TestProxyManager_PersistentGroupsAreNotSwapped(t *testing.T) {
 	assert.Equal(t, proxy.findGroupByModelName("model1").processes["model1"].CurrentState(), StateReady)
 }
 
+// Test that exclusive swap sleeps other groups instead of stopping them.
+// G1 has a sleep-enabled model, G2 is standard. Loading G2 should put G1 to sleep.
+func TestProxyManager_ExclusiveSwapSleepsOtherGroups(t *testing.T) {
+	sleepCfg := getTestSimpleResponderConfig("sleepmodel")
+	sleepCfg.SleepMode = config.SleepModeEnable
+	sleepCfg.SleepEndpoints = []config.HTTPEndpoint{
+		{Endpoint: "/sleep", Method: "POST", Timeout: 5},
+	}
+	sleepCfg.WakeEndpoints = []config.HTTPEndpoint{
+		{Endpoint: "/wake_up", Method: "POST", Timeout: 5},
+	}
+
+	cfg := config.AddDefaultGroupToConfig(config.Config{
+		HealthCheckTimeout: 15,
+		Models: map[string]config.ModelConfig{
+			"sleepmodel":  sleepCfg,
+			"normalmodel": getTestSimpleResponderConfig("normalmodel"),
+		},
+		LogLevel: "error",
+		Groups: map[string]config.GroupConfig{
+			"G1": {
+				Swap:      true,
+				Exclusive: true,
+				Members:   []string{"sleepmodel"},
+			},
+			"G2": {
+				Swap:      true,
+				Exclusive: true,
+				Members:   []string{"normalmodel"},
+			},
+		},
+	})
+
+	proxy := New(cfg)
+	defer proxy.StopProcesses(StopWaitForInflightRequest)
+
+	// Load G1's model
+	reqBody := `{"model":"sleepmodel"}`
+	req := httptest.NewRequest("POST", "/v1/chat/completions", bytes.NewBufferString(reqBody))
+	w := CreateTestResponseRecorder()
+	proxy.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), "sleepmodel")
+	assert.Equal(t, StateReady, proxy.findGroupByModelName("sleepmodel").processes["sleepmodel"].CurrentState())
+
+	// Load G2's model — triggers exclusive swap, should sleep G1
+	reqBody = `{"model":"normalmodel"}`
+	req = httptest.NewRequest("POST", "/v1/chat/completions", bytes.NewBufferString(reqBody))
+	w = CreateTestResponseRecorder()
+	proxy.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), "normalmodel")
+
+	// G2 should be ready
+	assert.Equal(t, StateReady, proxy.findGroupByModelName("normalmodel").processes["normalmodel"].CurrentState())
+	// G1 should be asleep, not stopped
+	assert.Equal(t, StateAsleep, proxy.findGroupByModelName("sleepmodel").processes["sleepmodel"].CurrentState())
+}
+
 // When a request for a different model comes in ProxyManager should wait until
 // the first request is complete before swapping. Both requests should complete
 func TestProxyManager_SwapMultiProcessParallelRequests(t *testing.T) {

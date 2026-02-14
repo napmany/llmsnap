@@ -4,10 +4,18 @@
 
 llmsnap is a light weight, transparent proxy server that provides automatic model swapping to vllm, llama.cpp and other OpenAI compatible servers.
 
+## Architecture
+
+See [codemaps/](codemaps/) for detailed architecture documentation:
+- [architecture.md](codemaps/architecture.md) - Overall system architecture
+- [backend.md](codemaps/backend.md) - Go backend structure
+- [frontend.md](codemaps/frontend.md) - Svelte frontend structure
+- [data.md](codemaps/data.md) - Data models and schemas
+
 ## Tech stack
 
 - golang
-- typescript, vite and react for UI (located in ui/)
+- typescript, vite and svelte for UI (located in ui-svelte/)
 
 ## Workflow Tasks
 
