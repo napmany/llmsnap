@@ -1,6 +1,6 @@
 # Backend Codemap
 
-> Freshness: 2026-02-14
+> Freshness: 2026-02-14 (validated)
 
 ## Entry Point
 
@@ -16,18 +16,18 @@
 ### ProxyManager (`proxy/proxymanager.go`)
 Central orchestrator implementing `http.Handler`.
 - **Fields**: config, ginEngine, loggers (proxy/upstream/mux), metricsMonitor, processGroups map, peerProxy, shutdown context
-- **Key methods**: `setupGinEngine()`, `swapProcessGroup()`, `proxyInferenceHandler()`, `listModelsHandler()`, `apiKeyAuth()`
+- **Key methods**: `setupGinEngine()`, `swapProcessGroup()`, `proxyInferenceHandler()`, `proxyOAIPostFormHandler()`, `proxyGETModelHandler()`, `listModelsHandler()`, `findModelInPath()`, `apiKeyAuth()`
 
 ### ProcessGroup (`proxy/processgroup.go`)
 Manages a group of related model processes.
-- **Fields**: id, swap, exclusive, persistent, processes map, lastUsedProcess
-- **Key methods**: `ProxyRequest()`, `HasMember()`, `StopProcess()`, `SleepProcess()`, `Shutdown()`
+- **Fields**: id, swap, exclusive, persistent, processes map, lastUsedProcess, proxyLogger, upstreamLogger
+- **Key methods**: `ProxyRequest()`, `HasMember()`, `GetMember()`, `StopProcess()`, `SleepProcess()`, `StopProcesses()`, `MakeIdleProcesses()`, `Shutdown()`
 
 ### Process (`proxy/process.go`)
 Manages a single upstream inference server.
 - **States**: Stopped, Starting, Ready, Stopping, Shutdown, SleepPending, Asleep, Waking
 - **Fields**: ID, config, cmd, reverseProxy, state (atomic), inFlightRequests (WaitGroup), concurrencySemaphore
-- **Key methods**: `start()`, `Stop()`, `StopImmediately()`, `Sleep()`, `Wake()`, `ProxyRequest()`, `checkHealthEndpoint()`, `startUnloadMonitoring()`
+- **Key methods**: `makeReady()`, `MakeIdle()`, `start()`, `Stop()`, `StopImmediately()`, `Sleep()`, `wake()`, `ProxyRequest()`, `checkHealthEndpoint()`, `startUnloadMonitoring()`
 
 ### PeerProxy (`proxy/peerproxy.go`)
 Routes requests to remote llmsnap peers.
@@ -55,9 +55,10 @@ Collects token metrics and captures request/response pairs.
 | `/v1/messages` | `proxyInferenceHandler` |
 | `/v1/messages/count_tokens` | `proxyInferenceHandler` |
 | `/v1/embeddings` | `proxyInferenceHandler` |
-| `/reranking`, `/rerank`, `/v1/rerank` | `proxyInferenceHandler` |
+| `/reranking`, `/rerank`, `/v1/rerank`, `/v1/reranking` | `proxyInferenceHandler` |
 | `/infill`, `/completion` | `proxyInferenceHandler` |
-| `/v1/audio/speech`, `/v1/audio/voices` | `proxyInferenceHandler` |
+| `/v1/audio/speech` | `proxyInferenceHandler` |
+| `/v1/audio/voices` | `proxyInferenceHandler` (POST), `proxyGETModelHandler` (GET) |
 | `/v1/audio/transcriptions` | `proxyOAIPostFormHandler` |
 | `/v1/images/generations` | `proxyInferenceHandler` |
 | `/v1/images/edits` | `proxyOAIPostFormHandler` |
@@ -89,7 +90,7 @@ Collects token metrics and captures request/response pairs.
 
 - `sync.Mutex` on ProxyManager for group operations
 - `sync.RWMutex` on Process for state reads vs writes
-- `atomic.Int32` for process state transitions (`swapState`)
+- `sync.RWMutex` + mutex-guarded `swapState()` for process state transitions
 - `sync.WaitGroup` for in-flight request tracking
 - Channel-based semaphore for per-model concurrency limits
 - `sync.RWMutex` on circular buffer for log reads/writes
@@ -98,16 +99,18 @@ Collects token metrics and captures request/response pairs.
 
 | File | Lines | Purpose |
 |---|---|---|
-| `proxy/proxymanager.go` | ~850 | Core proxy routing and model resolution |
-| `proxy/proxymanager_api.go` | ~200 | API endpoints (events, metrics, captures) |
-| `proxy/proxymanager_loghandlers.go` | ~70 | Log streaming handlers |
-| `proxy/process.go` | ~900 | Upstream process lifecycle |
-| `proxy/processgroup.go` | ~120 | Process group management |
-| `proxy/peerproxy.go` | ~120 | Remote peer proxy |
-| `proxy/logMonitor.go` | ~180 | Structured logging |
-| `proxy/metrics_monitor.go` | ~450 | Metrics and capture |
+| `proxy/proxymanager.go` | ~1030 | Core proxy routing and model resolution |
+| `proxy/proxymanager_api.go` | ~300 | API endpoints (events, metrics, captures) |
+| `proxy/proxymanager_loghandlers.go` | ~110 | Log streaming handlers |
+| `proxy/process.go` | ~1120 | Upstream process lifecycle |
+| `proxy/processgroup.go` | ~200 | Process group management |
+| `proxy/peerproxy.go` | ~140 | Remote peer proxy |
+| `proxy/logMonitor.go` | ~270 | Structured logging with circular buffer |
+| `proxy/metrics_monitor.go` | ~540 | Metrics and capture |
 | `proxy/events.go` | ~60 | Event type definitions |
-| `proxy/config/config.go` | ~500 | Root config and loading |
-| `proxy/config/model_config.go` | ~300 | Model config structs |
-| `proxy/config/groups.go` | ~80 | Group config |
-| `event/event.go` | ~300 | Generic event dispatcher |
+| `proxy/config/config.go` | ~810 | Root config, loading, GroupConfig |
+| `proxy/config/model_config.go` | ~200 | Model config structs |
+| `proxy/config/filters.go` | ~80 | Shared Filters type (models + peers) |
+| `proxy/config/peer.go` | ~50 | PeerConfig struct |
+| `event/event.go` | ~320 | Generic event dispatcher |
+| `event/default.go` | ~30 | Default dispatcher + On/Emit helpers |

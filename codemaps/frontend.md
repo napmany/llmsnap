@@ -1,6 +1,6 @@
 # Frontend Codemap
 
-> Freshness: 2026-02-14
+> Freshness: 2026-02-14 (validated)
 
 ## Stack
 
@@ -17,6 +17,7 @@
 App.svelte
 ├── Header.svelte
 │   └── ConnectionStatus.svelte
+├── Tooltip.svelte (shared)
 └── Router
     ├── / → Playground.svelte
     │   ├── ChatInterface.svelte
@@ -28,8 +29,9 @@ App.svelte
     │   ├── SpeechInterface.svelte
     │   │   ├── ModelSelector.svelte
     │   │   └── ExpandableTextarea.svelte
-    │   └── AudioInterface.svelte
-    │       └── ModelSelector.svelte
+    │   ├── AudioInterface.svelte
+    │   │   └── ModelSelector.svelte
+    │   └── PlaceholderTab.svelte (stub for future tabs)
     ├── /models → Models.svelte
     │   ├── ResizablePanels.svelte
     │   │   ├── ModelsPanel.svelte
@@ -100,8 +102,8 @@ interface ContentPart { type: "text" | "image_url", text?, image_url?: { url } }
 ui-svelte/
 ├── src/
 │   ├── App.svelte, main.ts, index.css
-│   ├── components/        (10 files)
-│   │   └── playground/    (7 files)
+│   ├── components/        (11 files)
+│   │   └── playground/    (8 files)
 │   ├── lib/               (7 files + 1 test)
 │   ├── routes/            (4 files)
 │   └── stores/            (3 files)

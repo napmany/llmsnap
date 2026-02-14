@@ -1,6 +1,6 @@
 # Architecture Codemap
 
-> Freshness: 2026-02-14
+> Freshness: 2026-02-14 (validated)
 
 ## Overview
 
@@ -62,11 +62,13 @@ llmsnap/
 │   ├── sanitize_cors.go   # CORS header sanitization
 │   ├── discardWriter.go   # Mock ResponseWriter for preloading
 │   └── config/            # Configuration package
-│       ├── config.go      # Root config, YAML loading, env substitution
+│       ├── config.go      # Root config, YAML loading, env substitution, GroupConfig
 │       ├── model_config.go# Per-model config (cmd, sleep, filters, macros)
-│       └── groups.go      # Group config (swap, exclusive, persistent)
+│       ├── filters.go     # Shared Filters type (stripParams, setParams)
+│       └── peer.go        # PeerConfig and PeerDictionaryConfig
 ├── event/                 # Generic event bus
-│   └── event.go           # Lock-free pub/sub dispatcher with generics
+│   ├── event.go           # Lock-free pub/sub dispatcher with generics
+│   └── default.go         # Default global dispatcher + On/Emit helpers
 ├── cmd/                   # CLI tools
 │   ├── wol-proxy/         # Wake-on-LAN proxy server
 │   └── simple-responder/  # Test responder for development
@@ -101,8 +103,8 @@ event                 (no internal dependencies)
 3. Model name extracted from JSON body `"model"` field
 4. `config.RealModelName()` resolves aliases to canonical model ID
 5. `swapProcessGroup()` finds or activates the correct ProcessGroup
-   - If exclusive group, stops other non-persistent groups
-   - If swap group, stops other processes within the group
+   - If exclusive group, idles other non-persistent groups (sleep if configured, else stop)
+   - If swap group, idles other processes within the group via `MakeIdle()`
 6. `Process.start()` launches upstream server if not running
    - Executes `cmd` with macro substitution (${PORT}, ${MODEL_ID}, etc.)
    - Polls `checkEndpoint` until healthy (with configurable timeout)

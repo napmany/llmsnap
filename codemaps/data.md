@@ -1,10 +1,10 @@
 # Data Models Codemap
 
-> Freshness: 2026-02-14
+> Freshness: 2026-02-14 (validated)
 
 ## Configuration Schema
 
-### Root Config (`proxy/config/config.go`)
+### Root Config (`proxy/config/config.go`, includes GroupConfig)
 
 ```yaml
 healthCheckTimeout: 120        # seconds, min 15
@@ -57,19 +57,18 @@ models:
       - endpoint: "/wake_up"
         method: POST
 
-    # Request filtering
+    # Request filtering (ModelFilters wraps shared Filters type)
     filters:
       stripParams: "param1,param2"    # CSV, removes from request body
       setParams:                      # overrides in request body
         key: value
 
-    # Model-level macros (override global)
+    # Model-level macros (override global, ordered MacroList)
     macros:
-      - name: "CUSTOM_VAR"
-        value: "custom_value"
+      CUSTOM_VAR: "custom_value"      # YAML mapping, order-preserving
 ```
 
-### GroupConfig (`proxy/config/groups.go`)
+### GroupConfig (in `proxy/config/config.go`)
 
 ```yaml
 groups:
@@ -82,15 +81,15 @@ groups:
       - "model-b"
 ```
 
-### PeerConfig
+### PeerConfig (`proxy/config/peer.go`)
 
 ```yaml
 peers:
   "peer-name":
-    proxy: "http://remote-host:8080"
+    proxy: "http://remote-host:8080"   # required, validated URL
     apiKey: "secret-key"
-    models: ["remote-model-a", "remote-model-b"]
-    filters:
+    models: ["remote-model-a", "remote-model-b"]  # required, non-empty
+    filters:                            # shared Filters type
       stripParams: ""
       setParams: {}
 ```
@@ -102,6 +101,13 @@ hooks:
   onStartup:
     preload: ["model-to-preload"]
 ```
+
+### Filters (`proxy/config/filters.go`)
+
+Shared filter type used by both `ModelConfig` (as `ModelFilters` wrapper) and `PeerConfig`:
+- `StripParams` - CSV of params to remove (protected: "model")
+- `SetParams` - map of params to set/override
+- `SanitizedStripParams()` / `SanitizedSetParams()` - cleaned, sorted, deduplicated
 
 ## Macro System
 
@@ -140,7 +146,7 @@ type TokenMetrics struct {
     OutputTokens    int
     PromptPerSecond float64
     TokensPerSecond float64
-    DurationMs      int64
+    DurationMs      int       // milliseconds
     HasCapture      bool
 }
 ```
@@ -151,10 +157,10 @@ type TokenMetrics struct {
 type ReqRespCapture struct {
     ID          int
     ReqPath     string
-    ReqHeaders  http.Header
+    ReqHeaders  map[string]string  // single-value, sensitive headers redacted
     ReqBody     []byte
-    RespHeaders http.Header
-    RespBody    []byte    // base64 encoded in JSON responses
+    RespHeaders map[string]string
+    RespBody    []byte             // base64 encoded in JSON responses
 }
 ```
 
